@@ -6,7 +6,7 @@ struct RootTabView: View {
             DiscoverView()
                 .tabItem { Label("Discover", systemImage: "heart.fill") }
 
-            ComingSoonScreen(title: "Events")
+            EventsView()
                 .tabItem { Label("Events", systemImage: "calendar") }
 
             ComingSoonScreen(title: "Messages")
