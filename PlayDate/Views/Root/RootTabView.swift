@@ -9,7 +9,7 @@ struct RootTabView: View {
             EventsView()
                 .tabItem { Label("Events", systemImage: "calendar") }
 
-            ComingSoonScreen(title: "Messages")
+            ChatListView()
                 .tabItem { Label("Chat", systemImage: "message.fill") }
                 .badge(3)
 
