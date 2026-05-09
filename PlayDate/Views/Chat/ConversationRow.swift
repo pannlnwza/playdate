@@ -8,12 +8,12 @@ struct ConversationRow: View {
             avatar
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(conversation.parentName) \(conversation.childContext)")
+                Text(headerText)
                     .font(.system(size: 15, weight: .heavy, design: .rounded))
                     .foregroundStyle(Theme.textMain)
                     .lineLimit(1)
 
-                Text(conversation.lastMessage)
+                Text(conversation.lastMessage ?? "")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.textLight)
                     .lineLimit(1)
@@ -21,9 +21,11 @@ struct ConversationRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(alignment: .trailing, spacing: 6) {
-                Text(formatTime(conversation.lastMessageTime))
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.textMuted)
+                if let timestamp = conversation.lastMessageTime {
+                    Text(formatTime(timestamp))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.textMuted)
+                }
 
                 if conversation.unreadCount > 0 {
                     Text("\(conversation.unreadCount)")
@@ -38,6 +40,14 @@ struct ConversationRow: View {
         }
         .padding(14)
         .contentShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    private var headerText: String {
+        let name = conversation.parentName ?? ""
+        if let context = conversation.childContext, !context.isEmpty {
+            return "\(name) \(context)"
+        }
+        return name
     }
 
     private var avatar: some View {
@@ -83,9 +93,9 @@ struct ConversationRow: View {
 
 #Preview {
     VStack(spacing: 2) {
-        ConversationRow(conversation: Conversation.mockConversations[0])
-        ConversationRow(conversation: Conversation.mockConversations[2])
-        ConversationRow(conversation: Conversation.mockConversations[3])
+        ConversationRow(conversation: ChatSession.mockSessions[0])
+        ConversationRow(conversation: ChatSession.mockSessions[2])
+        ConversationRow(conversation: ChatSession.mockSessions[3])
     }
     .padding()
     .background(Theme.bg)

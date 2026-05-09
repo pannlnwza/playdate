@@ -1,7 +1,11 @@
 import SwiftUI
 
 struct ProfileView: View {
-    @State private var viewModel = ProfileViewModel()
+    @Environment(AuthSession.self) private var session
+    @State private var showEditProfile = false
+    @State private var showAddChild = false
+
+    private var parent: Parent? { session.currentUser }
 
     var body: some View {
         NavigationStack {
@@ -25,6 +29,12 @@ struct ProfileView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
         }
+        .sheet(isPresented: $showEditProfile) {
+            EditProfileView()
+        }
+        .sheet(isPresented: $showAddChild) {
+            AddChildView()
+        }
     }
 
     private var header: some View {
@@ -36,7 +46,7 @@ struct ProfileView: View {
             Spacer()
 
             Button {
-                // settings
+                showEditProfile = true
             } label: {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 16, weight: .bold))
@@ -59,21 +69,32 @@ struct ProfileView: View {
                 }
                 .padding(.bottom, 44)
 
-            Text(viewModel.profile.name)
+            Text(parent?.name ?? "")
                 .font(.system(size: 24, weight: .heavy, design: .rounded))
                 .foregroundStyle(Theme.textMain)
                 .padding(.top, 12)
 
-            HStack(spacing: 4) {
-                Image(systemName: "mappin.and.ellipse")
-                    .font(.system(size: 11, weight: .bold))
-                Text(viewModel.profile.location)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+            if let location = parent?.location, !location.isEmpty {
+                HStack(spacing: 4) {
+                    Image(systemName: "mappin.and.ellipse")
+                        .font(.system(size: 11, weight: .bold))
+                    Text(location)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                }
+                .foregroundStyle(Theme.textLight)
+                .padding(.top, 2)
             }
-            .foregroundStyle(Theme.textLight)
-            .padding(.top, 2)
 
-            if viewModel.profile.isVerified {
+            if let bio = parent?.bio, !bio.isEmpty {
+                Text(bio)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.textLight)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                    .padding(.top, 6)
+            }
+
+            if parent?.isVerified == true {
                 verifiedBadge
                     .padding(.top, 8)
             }
@@ -99,22 +120,28 @@ struct ProfileView: View {
     }
 
     private var avatar: some View {
-        Circle()
-            .fill(
+        Group {
+            if let image = session.profileImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
                 LinearGradient(
-                    colors: Theme.palette(for: viewModel.profile.id),
+                    colors: Theme.palette(for: parent?.id ?? "u"),
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
-            )
-            .frame(width: 88, height: 88)
-            .overlay {
-                Image(systemName: "person.fill")
-                    .font(.system(size: 40))
-                    .foregroundStyle(.white.opacity(0.6))
+                .overlay {
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
             }
-            .overlay { Circle().strokeBorder(Theme.bg, lineWidth: 4) }
-            .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
+        }
+        .frame(width: 88, height: 88)
+        .clipShape(Circle())
+        .overlay { Circle().strokeBorder(Theme.bg, lineWidth: 4) }
+        .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
     }
 
     private var verifiedBadge: some View {
@@ -132,11 +159,11 @@ struct ProfileView: View {
 
     private var statsRow: some View {
         HStack(spacing: 0) {
-            statItem(value: "\(viewModel.profile.matchesCount)", label: "MATCHES")
+            statItem(value: "\(parent?.matchesCount ?? 0)", label: "MATCHES")
             divider
-            statItem(value: "\(viewModel.profile.playdatesCount)", label: "PLAYDATES")
+            statItem(value: "\(parent?.playdatesCount ?? 0)", label: "PLAYDATES")
             divider
-            statItem(value: String(format: "%.1f", viewModel.profile.rating), label: "RATING")
+            statItem(value: String(format: "%.1f", parent?.rating ?? 0), label: "RATING")
         }
         .padding(.vertical, 8)
     }
@@ -170,7 +197,7 @@ struct ProfileView: View {
                 Spacer()
 
                 Button {
-                    // add child
+                    showAddChild = true
                 } label: {
                     Text("+ Add Child")
                         .font(.system(size: 13, weight: .heavy, design: .rounded))
@@ -180,21 +207,48 @@ struct ProfileView: View {
             }
             .padding(.horizontal, 20)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(viewModel.profile.children) { child in
-                        ChildSummaryCard(child: child)
+            if session.ownChildren.isEmpty {
+                emptyChildrenState
+                    .padding(.horizontal, 20)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(session.ownChildren) { child in
+                            ChildSummaryCard(child: child)
+                        }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 4)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 4)
             }
         }
     }
 
+    private var emptyChildrenState: some View {
+        Button {
+            showAddChild = true
+        } label: {
+            VStack(spacing: 8) {
+                Image(systemName: "figure.child.circle")
+                    .font(.system(size: 32))
+                    .foregroundStyle(Theme.textMuted)
+                Text("Add your first child to start matching")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.textLight)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 28)
+            .background(Theme.cardBg, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
+        }
+        .buttonStyle(.plain)
+    }
+
     private var settingsSection: some View {
-        VStack(spacing: 12) {
-            settingsGroup {
+        VStack(spacing: 0) {
+            Button {
+                showEditProfile = true
+            } label: {
                 SettingsRow(
                     icon: "person.crop.circle.fill",
                     iconColor: Color(red: 139/255, green: 92/255, blue: 246/255),
@@ -203,33 +257,12 @@ struct ProfileView: View {
                     subtitle: "Update your info and photos",
                     isLast: false
                 )
-                SettingsRow(
-                    icon: "lock.shield.fill",
-                    iconColor: Color(red: 16/255, green: 185/255, blue: 129/255),
-                    iconBg: Color(red: 209/255, green: 250/255, blue: 229/255),
-                    title: "Privacy & Safety",
-                    subtitle: "Manage your safety preferences",
-                    isLast: false
-                )
-                SettingsRow(
-                    icon: "bell.fill",
-                    iconColor: Color(red: 239/255, green: 68/255, blue: 68/255),
-                    iconBg: Color(red: 254/255, green: 226/255, blue: 226/255),
-                    title: "Notifications",
-                    subtitle: "Match alerts, messages, events",
-                    isLast: true
-                )
             }
+            .buttonStyle(.plain)
 
-            settingsGroup {
-                SettingsRow(
-                    icon: "questionmark.circle.fill",
-                    iconColor: Color(red: 59/255, green: 130/255, blue: 246/255),
-                    iconBg: Color(red: 219/255, green: 234/255, blue: 254/255),
-                    title: "Help & Support",
-                    subtitle: "FAQs, contact us, report",
-                    isLast: false
-                )
+            Button {
+                session.signOut()
+            } label: {
                 SettingsRow(
                     icon: "rectangle.portrait.and.arrow.right",
                     iconColor: Color(red: 245/255, green: 158/255, blue: 11/255),
@@ -239,20 +272,16 @@ struct ProfileView: View {
                     isLast: true
                 )
             }
-        }
-        .padding(.horizontal, 20)
-    }
-
-    @ViewBuilder
-    private func settingsGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        VStack(spacing: 0) {
-            content()
+            .buttonStyle(.plain)
         }
         .background(Theme.cardBg, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
+        .padding(.horizontal, 20)
     }
 }
 
 #Preview {
-    ProfileView()
+    let s = AuthSession()
+    s.signIn(email: "x", password: "x")
+    return ProfileView().environment(s)
 }

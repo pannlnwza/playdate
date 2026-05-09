@@ -7,46 +7,43 @@ struct SettingsRow: View {
     let title: String
     let subtitle: String?
     let isLast: Bool
-    var action: () -> Void = {}
 
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 0) {
-                HStack(spacing: 14) {
-                    Image(systemName: icon)
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(iconColor)
-                        .frame(width: 40, height: 40)
-                        .background(iconBg, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(iconColor)
+                    .frame(width: 40, height: 40)
+                    .background(iconBg, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .font(.system(size: 15, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Theme.textMain)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Theme.textMain)
 
-                        if let subtitle {
-                            Text(subtitle)
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .foregroundStyle(Theme.textLight)
-                        }
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Theme.textLight)
                     }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Theme.textMuted)
                 }
-                .padding(16)
 
-                if !isLast {
-                    Divider()
-                        .padding(.leading, 70)
-                        .opacity(0.5)
-                }
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Theme.textMuted)
+            }
+            .padding(16)
+            .contentShape(Rectangle())
+
+            if !isLast {
+                Divider()
+                    .padding(.leading, 70)
+                    .opacity(0.5)
             }
         }
-        .buttonStyle(.plain)
     }
 }
 
@@ -61,11 +58,11 @@ struct SettingsRow: View {
             isLast: false
         )
         SettingsRow(
-            icon: "bell.fill",
+            icon: "rectangle.portrait.and.arrow.right",
             iconColor: .red,
             iconBg: .red.opacity(0.15),
-            title: "Notifications",
-            subtitle: "Match alerts, messages, events",
+            title: "Log Out",
+            subtitle: nil,
             isLast: true
         )
     }

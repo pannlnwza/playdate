@@ -18,8 +18,13 @@ struct EventsView: View {
 
                             if let featured = viewModel.featuredEvent {
                                 sectionTitle("Featured")
-                                FeaturedEventCard(event: featured)
-                                    .padding(.horizontal, 20)
+                                NavigationLink {
+                                    EventDetailView(event: featured)
+                                } label: {
+                                    FeaturedEventCard(event: featured)
+                                        .padding(.horizontal, 20)
+                                }
+                                .buttonStyle(.plain)
                             }
 
                             sectionTitle("Upcoming")
@@ -34,11 +39,16 @@ struct EventsView: View {
                             } else {
                                 LazyVStack(spacing: 12) {
                                     ForEach(viewModel.upcomingEvents) { event in
-                                        EventCard(
-                                            event: event,
-                                            isJoined: viewModel.isJoined(event),
-                                            onJoin: { viewModel.toggleJoin(event) }
-                                        )
+                                        NavigationLink {
+                                            EventDetailView(event: event)
+                                        } label: {
+                                            EventCard(
+                                                event: event,
+                                                isJoined: viewModel.isJoined(event),
+                                                onJoin: { viewModel.toggleJoin(event) }
+                                            )
+                                        }
+                                        .buttonStyle(.plain)
                                     }
                                 }
                                 .padding(.horizontal, 20)

@@ -1,7 +1,11 @@
 import SwiftUI
 
 struct ChatListView: View {
-    @State private var viewModel = ChatViewModel()
+    @State private var sessions: [ChatSession] = ChatSession.mockSessions
+
+    private var recentMatches: [ChatSession] {
+        Array(sessions.prefix(4))
+    }
 
     var body: some View {
         NavigationStack {
@@ -47,8 +51,13 @@ struct ChatListView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
-                    ForEach(viewModel.recentMatches) { match in
-                        NewMatchAvatar(conversation: match)
+                    ForEach(recentMatches) { match in
+                        NavigationLink {
+                            ChatDetailView(session: match)
+                        } label: {
+                            NewMatchAvatar(conversation: match)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 24)
@@ -59,8 +68,13 @@ struct ChatListView: View {
 
     private var chatListSection: some View {
         LazyVStack(spacing: 2) {
-            ForEach(viewModel.conversations) { conversation in
-                ConversationRow(conversation: conversation)
+            ForEach(sessions) { session in
+                NavigationLink {
+                    ChatDetailView(session: session)
+                } label: {
+                    ConversationRow(conversation: session)
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 14)
@@ -69,4 +83,5 @@ struct ChatListView: View {
 
 #Preview {
     ChatListView()
+        .environment(AuthSession())
 }

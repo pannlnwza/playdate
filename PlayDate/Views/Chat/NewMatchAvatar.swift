@@ -6,7 +6,7 @@ struct NewMatchAvatar: View {
     var body: some View {
         VStack(spacing: 6) {
             avatar
-            Text(conversation.parentName)
+            Text(conversation.parentName ?? "")
                 .font(.system(size: 11, weight: .heavy, design: .rounded))
                 .foregroundStyle(Theme.textMain)
                 .lineLimit(1)
@@ -51,8 +51,8 @@ struct NewMatchAvatar: View {
 
 #Preview {
     HStack(spacing: 16) {
-        NewMatchAvatar(conversation: Conversation.mockConversations[0])
-        NewMatchAvatar(conversation: Conversation.mockConversations[2])
+        NewMatchAvatar(conversation: ChatSession.mockSessions[0])
+        NewMatchAvatar(conversation: ChatSession.mockSessions[2])
     }
     .padding()
     .background(Theme.bg)
