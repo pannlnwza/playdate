@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct ChildSummaryCard: View {
-    let child: ProfileChild
+    let child: Child
+    @Environment(AuthSession.self) private var session
 
     var body: some View {
         VStack(spacing: 10) {
@@ -30,20 +31,26 @@ struct ChildSummaryCard: View {
     }
 
     private var avatar: some View {
-        Circle()
-            .fill(
+        Group {
+            if let image = session.childImages[child.id] {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
                 LinearGradient(
                     colors: Theme.palette(for: child.id),
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
-            )
-            .frame(width: 64, height: 64)
-            .overlay {
-                Image(systemName: "person.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(.white.opacity(0.6))
+                .overlay {
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
             }
+        }
+        .frame(width: 64, height: 64)
+        .clipShape(Circle())
     }
 
     private func interestTag(_ interest: String) -> some View {
@@ -74,9 +81,10 @@ struct ChildSummaryCard: View {
 
 #Preview {
     HStack(spacing: 12) {
-        ChildSummaryCard(child: Profile.mockProfile.children[0])
-        ChildSummaryCard(child: Profile.mockProfile.children[1])
+        ChildSummaryCard(child: Parent.mockOwnChildren[0])
+        ChildSummaryCard(child: Parent.mockOwnChildren[1])
     }
     .padding()
     .background(Theme.bg)
+    .environment(AuthSession())
 }

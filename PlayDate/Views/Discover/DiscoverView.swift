@@ -31,8 +31,8 @@ struct DiscoverView: View {
 
             Spacer()
 
-            Button {
-                // notifications
+            NavigationLink {
+                NotificationsView()
             } label: {
                 Image(systemName: "bell.fill")
                     .font(.system(size: 16, weight: .bold))
@@ -47,6 +47,7 @@ struct DiscoverView: View {
                             .offset(x: -8, y: 8)
                     }
             }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 24)
         .padding(.top, 8)
@@ -92,7 +93,8 @@ struct DiscoverView: View {
                 size: .large,
                 foreground: Theme.primary,
                 background: Theme.cardBg,
-                shadowColor: Theme.primary.opacity(0.2)
+                shadowColor: Theme.primary.opacity(0.2),
+                isEnabled: !viewModel.children.isEmpty
             ) {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                     viewModel.swipe(.left)
@@ -104,9 +106,12 @@ struct DiscoverView: View {
                 size: .small,
                 foreground: Theme.orange,
                 background: Theme.cardBg,
-                shadowColor: .black.opacity(0.1)
+                shadowColor: .black.opacity(0.1),
+                isEnabled: viewModel.canRewind
             ) {
-                // rewind placeholder
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    viewModel.rewind()
+                }
             }
 
             ActionButton(
@@ -114,7 +119,8 @@ struct DiscoverView: View {
                 size: .large,
                 foreground: .white,
                 gradient: Theme.likeGradient,
-                shadowColor: Theme.secondary.opacity(0.4)
+                shadowColor: Theme.secondary.opacity(0.4),
+                isEnabled: !viewModel.children.isEmpty
             ) {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                     viewModel.swipe(.right)
@@ -134,6 +140,7 @@ private struct ActionButton: View {
     var background: Color = .white
     var gradient: LinearGradient? = nil
     let shadowColor: Color
+    var isEnabled: Bool = true
     let action: () -> Void
 
     private var dimension: CGFloat { size == .small ? 48 : 64 }
@@ -153,11 +160,14 @@ private struct ActionButton: View {
                     }
                 }
                 .shadow(color: shadowColor, radius: 12, y: 4)
+                .opacity(isEnabled ? 1.0 : 0.4)
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
     }
 }
 
 #Preview {
     RootTabView()
+        .environment(AuthSession())
 }
