@@ -5,16 +5,30 @@ struct AddChildView: View {
     @Environment(AuthSession.self) private var session
     @Environment(\.dismiss) private var dismiss
 
+    let editing: Child?
+
+    init(editing: Child? = nil) {
+        self.editing = editing
+    }
+
+    private var isEditing: Bool { editing != nil }
+
     @State private var name = ""
     @State private var age = 4
+    @State private var bio = ""
     @State private var selectedHobbies: Set<String> = []
-    @State private var photoItem: PhotosPickerItem?
-    @State private var pickedImage: UIImage?
+    @State private var photoItems: [PhotosPickerItem] = []
+    @State private var pickedImages: [UIImage] = []
+    @State private var keptImageUrls: [String] = []
+    @State private var showDeleteConfirm = false
 
+    private let maxImages = 5
     private let hobbyOptions = [
         "Soccer", "Lego", "Art", "Music", "Dance",
         "Reading", "Outdoors", "Swimming", "Science", "Crafts"
     ]
+
+    private var totalPhotoCount: Int { keptImageUrls.count + pickedImages.count }
 
     private var isValid: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
@@ -24,13 +38,11 @@ struct AddChildView: View {
         NavigationStack {
             Form {
                 Section {
-                    HStack {
-                        Spacer()
-                        avatarPicker
-                        Spacer()
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
+                    galleryPicker
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                } footer: {
+                    Text("Add up to \(maxImages) photos. The first one is the main photo.")
                 }
 
                 Section("Details") {
@@ -45,6 +57,9 @@ struct AddChildView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+
+                    TextField("About", text: $bio, axis: .vertical)
+                        .lineLimit(3...6)
                 }
 
                 Section("Hobbies & interests") {
@@ -60,72 +75,180 @@ struct AddChildView: View {
                     }
                     .listRowSeparator(.hidden)
                 }
+
+                if isEditing {
+                    Section {
+                        Button(role: .destructive) {
+                            showDeleteConfirm = true
+                        } label: {
+                            HStack {
+                                Spacer()
+                                Text("Delete Child")
+                                    .fontWeight(.heavy)
+                                Spacer()
+                            }
+                        }
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
-            .background(Theme.bg)
-            .navigationTitle("Add Child")
+            .background(Theme.cardBg)
+            .navigationTitle(isEditing ? "Edit Child" : "Add Child")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Add", action: save)
-                        .fontWeight(.heavy)
-                        .disabled(!isValid)
-                }
-            }
-            .onChange(of: photoItem) { _, newItem in
-                Task {
-                    if let data = try? await newItem?.loadTransferable(type: Data.self),
-                       let image = UIImage(data: data) {
-                        pickedImage = image
-                    }
-                }
-            }
-        }
-    }
-
-    private var avatarPicker: some View {
-        PhotosPicker(selection: $photoItem, matching: .images) {
-            ZStack(alignment: .bottomTrailing) {
-                Group {
-                    if let image = pickedImage {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
+                    if session.isLoading {
+                        ProgressView()
                     } else {
-                        defaultAvatar
+                        Button(isEditing ? "Save" : "Add", action: save)
+                            .fontWeight(.heavy)
+                            .disabled(!isValid)
                     }
                 }
-                .frame(width: 88, height: 88)
-                .clipShape(Circle())
-
-                Circle()
-                    .fill(Theme.brandGradient)
-                    .frame(width: 28, height: 28)
-                    .overlay {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-                    .overlay { Circle().strokeBorder(Theme.bg, lineWidth: 3) }
             }
-            .padding(.vertical, 8)
+            .onAppear(perform: loadEditingState)
+            .onChange(of: photoItems) { _, newItems in
+                Task { await loadPickedImages(from: newItems) }
+            }
+            .confirmationDialog(
+                "Delete \(name)?",
+                isPresented: $showDeleteConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive, action: delete)
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This permanently removes this child profile.")
+            }
         }
     }
 
-    private var defaultAvatar: some View {
-        LinearGradient(
-            colors: Theme.palette(for: name.isEmpty ? "new" : name),
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .overlay {
-            Image(systemName: "figure.child.circle.fill")
-                .font(.system(size: 44))
-                .foregroundStyle(.white.opacity(0.7))
+    private var galleryPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(Array(keptImageUrls.enumerated()), id: \.offset) { index, url in
+                    existingThumbnail(url: url, slotIndex: index)
+                }
+                ForEach(Array(pickedImages.enumerated()), id: \.offset) { index, image in
+                    pickedThumbnail(image: image, slotIndex: keptImageUrls.count + index, pickedIndex: index)
+                }
+                if totalPhotoCount < maxImages {
+                    addPhotoTile
+                }
+            }
+            .padding(.vertical, 4)
         }
+    }
+
+    private func existingThumbnail(url: String, slotIndex: Int) -> some View {
+        Color.gray.opacity(0.15)
+            .frame(width: 110, height: 147)
+            .overlay {
+                AsyncImage(url: URL(string: url)) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        Color.clear
+                    }
+                }
+                .frame(width: 110, height: 147)
+                .clipped()
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(alignment: .topLeading) {
+                if slotIndex == 0 { mainBadge }
+            }
+            .overlay(alignment: .topTrailing) {
+                removeButton { keptImageUrls.remove(at: slotIndex) }
+            }
+    }
+
+    private func pickedThumbnail(image: UIImage, slotIndex: Int, pickedIndex: Int) -> some View {
+        Color.gray.opacity(0.15)
+            .frame(width: 110, height: 147)
+            .overlay {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 110, height: 147)
+                    .clipped()
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(alignment: .topLeading) {
+                if slotIndex == 0 { mainBadge }
+            }
+            .overlay(alignment: .topTrailing) {
+                removeButton {
+                    pickedImages.remove(at: pickedIndex)
+                    if photoItems.indices.contains(pickedIndex) {
+                        photoItems.remove(at: pickedIndex)
+                    }
+                }
+            }
+    }
+
+    private var mainBadge: some View {
+        Text("MAIN")
+            .font(.system(size: 9, weight: .heavy, design: .rounded))
+            .tracking(1)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Theme.primary, in: Capsule())
+            .padding(6)
+    }
+
+    private func removeButton(_ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 20))
+                .foregroundStyle(.white, .black.opacity(0.55))
+        }
+        .buttonStyle(.plain)
+        .padding(4)
+    }
+
+    private var addPhotoTile: some View {
+        PhotosPicker(
+            selection: $photoItems,
+            maxSelectionCount: maxImages - keptImageUrls.count,
+            matching: .images
+        ) {
+            VStack(spacing: 6) {
+                Image(systemName: "plus")
+                    .font(.system(size: 26, weight: .regular))
+                Text("Add")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+            }
+            .foregroundStyle(Theme.textLight)
+            .frame(width: 110, height: 147)
+            .background(Theme.cardBg, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+
+    private func loadEditingState() {
+        guard let editing else { return }
+        name = editing.name
+        age = editing.age
+        bio = editing.bio ?? ""
+        selectedHobbies = Set(editing.hobbies)
+        keptImageUrls = editing.imageUrls
+    }
+
+    private func loadPickedImages(from items: [PhotosPickerItem]) async {
+        let availableSlots = max(0, maxImages - keptImageUrls.count)
+        var images: [UIImage] = []
+        for item in items.prefix(availableSlots) {
+            if let data = try? await item.loadTransferable(type: Data.self),
+               let image = UIImage(data: data) {
+                images.append(image)
+            }
+        }
+        pickedImages = images
     }
 
     private func toggle(_ hobby: String) {
@@ -138,8 +261,36 @@ struct AddChildView: View {
 
     private func save() {
         let hobbies = hobbyOptions.filter { selectedHobbies.contains($0) }
-        session.addChild(name: name, age: age, hobbies: hobbies, image: pickedImage)
-        dismiss()
+        let trimmedBio = bio.trimmingCharacters(in: .whitespacesAndNewlines)
+        let bioToSave = trimmedBio.isEmpty ? nil : trimmedBio
+        Task {
+            if let editing {
+                await session.updateChild(
+                    editing,
+                    name: name,
+                    age: age,
+                    bio: bioToSave,
+                    hobbies: hobbies,
+                    newImages: pickedImages,
+                    keptImageUrls: keptImageUrls
+                )
+            } else {
+                await session.addChild(name: name, age: age, bio: bioToSave, hobbies: hobbies, images: pickedImages)
+            }
+            if session.errorMessage == nil {
+                dismiss()
+            }
+        }
+    }
+
+    private func delete() {
+        guard let editing else { return }
+        Task {
+            await session.deleteChild(editing)
+            if session.errorMessage == nil {
+                dismiss()
+            }
+        }
     }
 }
 
@@ -172,6 +323,7 @@ private struct HobbyChip: View {
 
 #Preview {
     let s = AuthSession()
-    s.signIn(email: "x", password: "x")
+    s.currentUser = .mockCurrentUser
+    s.ownChildren = Parent.mockOwnChildren
     return AddChildView().environment(s)
 }

@@ -8,7 +8,8 @@ struct ChildProfileCard: View {
     @State private var dragOffset: CGSize = .zero
     @State private var photoIndex: Int = 0
 
-    private let photoCount = 3
+    private var photoCount: Int { max(child.imageUrls.count, 1) }
+    private var hasPhotos: Bool { !child.imageUrls.isEmpty }
 
     private var rotation: Double { Double(dragOffset.width / 20) }
     private var likeOpacity: Double { max(0, min(1, dragOffset.width / 100)) }
@@ -32,7 +33,36 @@ struct ChildProfileCard: View {
         .gesture(isTopCard ? dragGesture : nil)
     }
 
+    @ViewBuilder
     private var background: some View {
+        if hasPhotos, child.imageUrls.indices.contains(photoIndex),
+           let url = URL(string: child.imageUrls[photoIndex]) {
+            GeometryReader { geo in
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: geo.size.width, height: geo.size.height)
+                            .clipped()
+                    case .empty:
+                        placeholderGradient.overlay { ProgressView().tint(.white) }
+                    case .failure:
+                        placeholderGradient
+                    @unknown default:
+                        placeholderGradient
+                    }
+                }
+                .frame(width: geo.size.width, height: geo.size.height)
+            }
+            .animation(.easeInOut(duration: 0.25), value: photoIndex)
+        } else {
+            placeholderGradient
+        }
+    }
+
+    private var placeholderGradient: some View {
         LinearGradient(
             colors: Theme.palette(for: photoSeed),
             startPoint: .topLeading,
@@ -43,7 +73,6 @@ struct ChildProfileCard: View {
                 .font(.system(size: 120))
                 .foregroundStyle(.white.opacity(0.35))
         }
-        .animation(.easeInOut(duration: 0.25), value: photoIndex)
     }
 
     private var photoTapZones: some View {
@@ -91,21 +120,23 @@ struct ChildProfileCard: View {
 
     private var parentBadge: some View {
         HStack(spacing: 8) {
-            Circle()
-                .fill(LinearGradient(
-                    colors: Theme.palette(for: child.parentName ?? child.parentId),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
-                .frame(width: 32, height: 32)
-                .overlay {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
+            Group {
+                if let urlString = child.parentImageUrl, let url = URL(string: urlString) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().scaledToFill()
+                        default:
+                            parentAvatarPlaceholder
+                        }
+                    }
+                } else {
+                    parentAvatarPlaceholder
                 }
-                .overlay {
-                    Circle().strokeBorder(.white.opacity(0.5), lineWidth: 2)
-                }
+            }
+            .frame(width: 32, height: 32)
+            .clipShape(Circle())
+            .overlay { Circle().strokeBorder(.white.opacity(0.5), lineWidth: 2) }
 
             Text(child.parentName ?? "")
                 .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -123,6 +154,19 @@ struct ChildProfileCard: View {
         .background { Capsule().fill(.ultraThinMaterial) }
         .overlay { Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1.5) }
         .allowsHitTesting(false)
+    }
+
+    private var parentAvatarPlaceholder: some View {
+        LinearGradient(
+            colors: Theme.palette(for: child.parentName ?? child.parentId),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay {
+            Image(systemName: "person.fill")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.white)
+        }
     }
 
     private var infoLink: some View {
@@ -173,19 +217,37 @@ struct ChildProfileCard: View {
     }
 
     private var cardContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Spacer()
 
             photoDots
 
-            Text("\(child.name), \(child.age)")
-                .font(.system(size: 28, weight: .heavy, design: .rounded))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text("\(child.name), \(child.age)")
+                    .font(.system(size: 28, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
 
-            Text(detailText)
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.9))
+                if let distance = child.distanceKm {
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin.and.ellipse")
+                            .font(.system(size: 11, weight: .bold))
+                        Text(String(format: "%.1f km", distance))
+                            .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background { Capsule().fill(.ultraThinMaterial) }
+                    .overlay { Capsule().strokeBorder(.white.opacity(0.3), lineWidth: 1) }
+                }
+            }
+
+            if let bio = child.bio, !bio.isEmpty {
+                Text(bio)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
 
             FlowLayout(spacing: 6) {
                 ForEach(child.interests, id: \.self) { interest in
@@ -204,24 +266,20 @@ struct ChildProfileCard: View {
         .allowsHitTesting(false)
     }
 
+    @ViewBuilder
     private var photoDots: some View {
-        HStack(spacing: 4) {
-            ForEach(0..<photoCount, id: \.self) { i in
-                Capsule()
-                    .fill(i == photoIndex ? Color.white : Color.white.opacity(0.4))
-                    .frame(width: i == photoIndex ? 28 : 18, height: 4)
-                    .animation(.easeInOut(duration: 0.2), value: photoIndex)
+        if hasPhotos && photoCount > 1 {
+            HStack(spacing: 4) {
+                ForEach(0..<photoCount, id: \.self) { i in
+                    Capsule()
+                        .fill(i == photoIndex ? Color.white : Color.white.opacity(0.4))
+                        .frame(width: i == photoIndex ? 28 : 18, height: 4)
+                        .animation(.easeInOut(duration: 0.2), value: photoIndex)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.bottom, 4)
         }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.bottom, 4)
-    }
-
-    private var detailText: String {
-        let bio = child.bio ?? ""
-        guard let distance = child.distanceKm else { return bio }
-        let distanceStr = String(format: "%.1f km", distance)
-        return bio.isEmpty ? distanceStr : "\(bio) • \(distanceStr)"
     }
 
     private func previousPhoto() {

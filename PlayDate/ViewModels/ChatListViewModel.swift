@@ -1,40 +1,31 @@
 import Foundation
-import Combine
+import Observation
 
-@MainActor
-class ChatListViewModel: ObservableObject {
-    @Published var sessions: [ChatSession] = []
-    @Published var isLoading: Bool = false
-    @Published var errorMessage: String?
-    
-    private let chatService: ChatServiceProtocol
-    private let userId: String
-    
-    init(chatService: ChatServiceProtocol, userId: String) {
-        self.chatService = chatService
-        self.userId = userId
+@Observable
+final class ChatListViewModel {
+    var sessions: [ChatSession] = []
+    var isLoading: Bool = true
+
+    var unreadCount: Int { sessions.filter(\.isNewMatch).count }
+
+    private var chatService: ChatServiceProtocol?
+    private var stop: (() -> Void)?
+
+    deinit {
+        stop?()
     }
-    
-    func fetchSessions() async {
-        isLoading = true
-        errorMessage = nil
-        do {
-            sessions = try await chatService.fetchSessions(for: userId)
-        } catch {
-            errorMessage = error.localizedDescription
+
+    func attach(service: ChatServiceProtocol, userId: String) {
+        stop?()
+        chatService = service
+        stop = service.observeSessions(for: userId) { [weak self] sessions in
+            self?.sessions = sessions
+            self?.isLoading = false
         }
-        isLoading = false
     }
-    
-    func deleteSession(sessionId: String) async {
-        isLoading = true
-        errorMessage = nil
-        do {
-            try await chatService.deleteSession(sessionId)
-            sessions.removeAll(where: { $0.id == sessionId })
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-        isLoading = false
+
+    func detach() {
+        stop?()
+        stop = nil
     }
 }

@@ -1,74 +1,52 @@
 import Foundation
-import Combine
+import Observation
 
-@MainActor
-class ChatViewModel: ObservableObject {
-    @Published var messages: [ChatMessage] = []
-    @Published var isLoading: Bool = false
-    @Published var errorMessage: String?
-    
-    let session: ChatSession
-    private let chatService: ChatServiceProtocol
-    private let userId: String
-    
-    init(session: ChatSession, chatService: ChatServiceProtocol, userId: String) {
-        self.session = session
-        self.chatService = chatService
+@Observable
+final class ChatViewModel {
+    var messages: [ChatMessage] = []
+    var isLoading: Bool = true
+    var errorMessage: String?
+
+    private var chatService: ChatServiceProtocol?
+    private var chatId: String?
+    private var userId: String?
+    private var stop: (() -> Void)?
+
+    deinit {
+        stop?()
+    }
+
+    func attach(service: ChatServiceProtocol, chatId: String, userId: String) {
+        stop?()
+        self.chatService = service
+        self.chatId = chatId
         self.userId = userId
-    }
-    
-    func fetchMessages() async {
-        isLoading = true
-        errorMessage = nil
-        do {
-            messages = try await chatService.fetchMessages(for: session.id)
-        } catch {
-            errorMessage = error.localizedDescription
+        stop = service.observeMessages(in: chatId) { [weak self] messages in
+            self?.messages = messages
+            self?.isLoading = false
         }
-        isLoading = false
+        Task { try? await service.markSessionRead(chatId: chatId) }
     }
-    
-    func sendText(_ text: String) async {
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        
-        let newMessage = ChatMessage(
-            senderId: userId,
-            content: text,
-            type: .text
-        )
-        
-        await sendMessage(newMessage)
+
+    func detach() {
+        stop?()
+        stop = nil
     }
-    
-    func sendSticker(url: String) async {
-        let newMessage = ChatMessage(
-            senderId: userId,
-            content: url,
-            type: .sticker
-        )
-        
-        await sendMessage(newMessage)
-    }
-    
-    func sendVoiceNote(url: String) async {
-        let newMessage = ChatMessage(
-            senderId: userId,
-            content: url,
-            type: .voiceNote
-        )
-        
-        await sendMessage(newMessage)
-    }
-    
-    private func sendMessage(_ message: ChatMessage) async {
-        // Optimistic update
+
+    func send(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let chatService, let chatId, let userId else { return }
+
+        let message = ChatMessage(senderId: userId, content: trimmed, timestamp: Date(), type: .text)
         messages.append(message)
-        
-        do {
-            try await chatService.sendMessage(message, in: session.id)
-        } catch {
-            errorMessage = error.localizedDescription
-            // In a real app, you might mark the message as failed to send
+
+        Task {
+            do {
+                try await chatService.sendMessage(message, in: chatId)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 }

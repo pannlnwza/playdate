@@ -2,6 +2,11 @@ import SwiftUI
 
 struct FeaturedEventCard: View {
     let event: Event
+    @Environment(AuthSession.self) private var session
+    @State private var participants: [Parent] = []
+
+    private var familyCount: Int { max(event.participantIds.count, participants.count) }
+    private var extras: Int { max(0, familyCount - participants.count) }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -9,12 +14,31 @@ struct FeaturedEventCard: View {
             bottomGradient
             content
         }
-        .frame(height: 200)
+        .frame(height: 220)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: .black.opacity(0.08), radius: 20, y: 8)
+        .task(id: event.id) {
+            await loadParticipants()
+        }
     }
 
+    @ViewBuilder
     private var background: some View {
+        if let urlString = event.imageUrl, let url = URL(string: urlString) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().scaledToFill()
+                default:
+                    placeholderBackground
+                }
+            }
+        } else {
+            placeholderBackground
+        }
+    }
+
+    private var placeholderBackground: some View {
         LinearGradient(
             colors: [
                 Color(red: 102/255, green: 126/255, blue: 234/255),
@@ -53,39 +77,93 @@ struct FeaturedEventCard: View {
                 .font(.system(size: 22, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
 
-            Text("\(event.location) • Ages \(event.minAge)-\(event.maxAge) • \(event.startTime)")
+            Text("\(event.location)  •  Ages \(event.minAge)-\(event.maxAge)  •  \(event.startTime)")
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.9))
 
-            attendees
-                .padding(.top, 4)
+            if familyCount > 0 {
+                attendees
+                    .padding(.top, 6)
+            }
         }
-        .padding(20)
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+        .padding(.bottom, 24)
     }
 
     private var attendees: some View {
         HStack(spacing: -8) {
-            ForEach(0..<3, id: \.self) { index in
+            ForEach(Array(participants.prefix(3).enumerated()), id: \.element.id) { _, parent in
+                avatar(for: parent)
+            }
+
+            if extras > 0 {
                 Circle()
-                    .fill(LinearGradient(
-                        colors: Theme.cardPalettes[index % Theme.cardPalettes.count],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
+                    .fill(Color.white.opacity(0.2))
                     .frame(width: 28, height: 28)
                     .overlay {
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 12, weight: .bold))
+                        Text("+\(extras)")
+                            .font(.system(size: 10, weight: .heavy, design: .rounded))
                             .foregroundStyle(.white)
                     }
                     .overlay { Circle().strokeBorder(.white, lineWidth: 2) }
             }
 
-            Text("+\(event.attendingFamilyCount) families going")
+            Text("\(familyCount) \(familyCount == 1 ? "family" : "families") going")
                 .font(.system(size: 12, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
                 .padding(.leading, 12)
         }
+    }
+
+    private func avatar(for parent: Parent) -> some View {
+        Group {
+            if let urlString = parent.profileImageUrl, let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        avatarPlaceholder(seed: parent.id)
+                    }
+                }
+            } else {
+                avatarPlaceholder(seed: parent.id)
+            }
+        }
+        .frame(width: 28, height: 28)
+        .clipShape(Circle())
+        .overlay { Circle().strokeBorder(.white, lineWidth: 2) }
+    }
+
+    private func avatarPlaceholder(seed: String) -> some View {
+        LinearGradient(
+            colors: Theme.palette(for: seed),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay {
+            Image(systemName: "person.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.white)
+        }
+    }
+
+    private func loadParticipants() async {
+        guard !event.participantIds.isEmpty else {
+            participants = []
+            return
+        }
+        let service: DataServiceProtocol = AppEnvironment.isPreview
+            ? MockDataService()
+            : FirestoreDataService(currentUserId: session.currentUser?.id)
+        var loaded: [Parent] = []
+        for id in event.participantIds.prefix(3) {
+            if let parent = try? await service.loadParent(id: id) {
+                loaded.append(parent)
+            }
+        }
+        participants = loaded
     }
 
     private var featuredLabel: String {
@@ -116,7 +194,10 @@ struct FeaturedEventCard: View {
 }
 
 #Preview {
-    FeaturedEventCard(event: Event.mockEvents[0])
+    let s = AuthSession()
+    s.currentUser = .mockCurrentUser
+    return FeaturedEventCard(event: Event.mockEvents[0])
         .padding()
         .background(Theme.bg)
+        .environment(s)
 }

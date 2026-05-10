@@ -7,7 +7,7 @@ struct EventCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            dateBox
+            thumbnail
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(event.title)
@@ -36,6 +36,42 @@ struct EventCard: View {
         .padding(16)
         .background(Theme.cardBg, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        if let urlString = event.imageUrl, let url = URL(string: urlString) {
+            ZStack {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        dateBox
+                    }
+                }
+
+                LinearGradient(
+                    colors: [.black.opacity(0.45), .black.opacity(0.15)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                VStack(spacing: 2) {
+                    Text(monthString)
+                        .font(.system(size: 10, weight: .heavy, design: .rounded))
+                        .tracking(1)
+                        .opacity(0.85)
+                    Text(dayString)
+                        .font(.system(size: 22, weight: .heavy, design: .rounded))
+                }
+                .foregroundStyle(.white)
+            }
+            .frame(width: 56, height: 60)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            dateBox
+        }
     }
 
     private var dateBox: some View {
@@ -67,16 +103,10 @@ struct EventCard: View {
                 .foregroundStyle(isJoined ? Theme.secondary : .white)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background {
-                    if isJoined {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color(red: 240/255, green: 253/255, blue: 244/255))
-                    } else {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Theme.likeGradient)
-                    }
-                }
-                .shadow(color: isJoined ? .clear : Theme.secondary.opacity(0.3), radius: 8, y: 2)
+                .background(
+                    isJoined ? Color(red: 240/255, green: 253/255, blue: 244/255) : Theme.primary,
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
         }
         .buttonStyle(.plain)
     }

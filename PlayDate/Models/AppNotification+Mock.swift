@@ -11,10 +11,10 @@ extension AppNotification {
                 id: "n1",
                 kind: .match,
                 title: "It's a PlayDate!",
-                body: "Sarah swiped right on Lily — say hello!",
+                body: "Sarah swiped right on Lily. Say hello!",
                 timestamp: ago(5),
                 isRead: false,
-                iconName: "heart.fill"
+                iconName: "hand.thumbsup.fill"
             ),
             AppNotification(
                 id: "n2",
@@ -32,7 +32,7 @@ extension AppNotification {
                 body: "Jessica L. wants Olivia and Lily to play together",
                 timestamp: ago(120),
                 isRead: false,
-                iconName: "heart.fill"
+                iconName: "hand.thumbsup.fill"
             ),
             AppNotification(
                 id: "n4",

@@ -17,6 +17,7 @@ struct Event: Codable, Identifiable {
     var category: EventCategory
     var attendingFamilyCount: Int
     var isFeatured: Bool
+    var imageUrl: String?
 
     init(id: String = UUID().uuidString,
          title: String,
@@ -32,7 +33,8 @@ struct Event: Codable, Identifiable {
          maxAge: Int = 100,
          category: EventCategory = .outdoors,
          attendingFamilyCount: Int = 0,
-         isFeatured: Bool = false) {
+         isFeatured: Bool = false,
+         imageUrl: String? = nil) {
         self.id = id
         self.title = title
         self.description = description
@@ -48,6 +50,7 @@ struct Event: Codable, Identifiable {
         self.category = category
         self.attendingFamilyCount = attendingFamilyCount
         self.isFeatured = isFeatured
+        self.imageUrl = imageUrl
     }
 
     var location: String { locationName }

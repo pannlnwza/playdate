@@ -2,7 +2,7 @@ import Foundation
 import FirebaseFirestore
 
 class FirestoreStorageService: StorageServiceProtocol {
-    private let db = Firestore.firestore()
+    private lazy var db = Firestore.firestore()
     private let collectionName = "media_storage"
     
     func uploadImage(_ data: Data, path: String) async throws -> URL {
