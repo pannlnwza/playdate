@@ -1,42 +1,60 @@
 # PlayDate iOS App
 
-PlayDate is a dedicated iOS mobile application designed to bridge the gap between digital interaction and physical play.
+PlayDate is a dedicated iOS mobile application designed to bridge the gap between digital interaction and physical play. Parents swipe to find playmates for their kids, chat to coordinate, and join family-friendly events nearby.
 
-## Docker Setup (Media Storage)
+## Tech Stack
 
-To store and serve media files locally, we use **MinIO** running in a Docker container.
+| Area | Choice |
+|---|---|
+| UI | SwiftUI (iOS 17+) |
+| Architecture | MVVM with `@Observable` view models |
+| Auth | Firebase Authentication (email/password) |
+| Database | Cloud Firestore (real-time listeners for chat and notifications) |
+| Image Storage | Base64-encoded images stored in Firestore documents (no Firebase Storage required, works on the Spark free plan) |
+| Location | CoreLocation + MapKit's `MKLocalSearchCompleter` |
+
+## Getting Started
 
 ### 1. Prerequisites
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
+- Xcode 16 or later
+- iOS 17+ deployment target
+- A Firebase project (free Spark plan is fine)
 
-### 2. Start the Storage Server
-Open your terminal in the project root and run:
+### 2. Clone the repo
 ```bash
-docker-compose up -d
+git clone https://github.com/pannlnwza/playdate.git
+cd playdate
 ```
 
-### 3. Access MinIO Console
-Once the container is running, you can manage your files and buckets through the web interface:
-- **URL**: [http://localhost:9001](http://localhost:9001)
-- **Username**: `minioadmin`
-- **Password**: `minioadminpassword`
+### 3. Set up Firebase
 
-### 4. Create a Bucket
-Before uploading files from the app, you need to create a bucket:
-1. Log in to the MinIO Console.
-2. Click on **Buckets** -> **Create Bucket**.
-3. Name it `playdate-media`.
-4. (Optional) Set the Access Policy to **Public** if you want images to be viewable via direct links without authentication.
+Create a Firebase project and register an iOS app, then drop the generated `GoogleService-Info.plist` into the `PlayDate/` folder. The file is **gitignored** (it identifies your project and shouldn't live in source control).
 
-### 5. App Configuration
-The app is configured to connect to `http://localhost:9000` for file operations. 
-> **Note**: If testing on a physical device, replace `localhost` with your computer's local IP address.
+Follow the official Firebase iOS setup guide: <https://firebase.google.com/docs/ios/setup>
 
----
+You'll also need to enable in your Firebase Console:
+- **Authentication** → **Sign-in method** → **Email/Password**
+- **Firestore Database** → create one (start in test mode is fine for development)
 
-## Development
+### 4. Add the Info.plist privacy keys
 
-- **Architecture**: MVVM
-- **UI Framework**: SwiftUI
-- **Storage**: MinIO (via Docker)
-- **Database/Auth**: Firebase (Spark Plan)
+In Xcode → select the PlayDate target → **Info** tab → add:
+- `Privacy - Location When In Use Usage Description` → `"PlayDate uses your location to show nearby families."`
+- `Privacy - Photo Library Usage Description` → `"PlayDate needs access to your photos to add profile and child photos."`
+
+### 5. Build and run
+- Open `PlayDate.xcodeproj` in Xcode
+- Select an iPhone simulator (or your connected device)
+- ⌘R to build and run
+
+On first launch, the app seeds three demo parent profiles (Sarah, Mike, Aisha) and their children + sample events into your Firestore so you can immediately swipe and join events.
+
+## Features
+
+- **Auth**: Email/password sign in/up via FirebaseAuth, persisted across launches
+- **Discover**: Tinder-style swipeable child cards with filters (age, hobbies, going to same event)
+- **Matching**: Real reciprocity check (both sides must swipe right, with auto-match for seed parents)
+- **Chat**: Real-time messaging with Firestore snapshot listeners, unread badge on tab
+- **Events**: Browse, filter by category, join/leave, create your own with cover photo and `MKLocalSearch` location picker
+- **Notifications**: Live updates on matches, mark-as-read, unread badge on bell icon
+- **Profile**: Edit name/bio/location with reverse-geocoded coordinates, manage children with photo galleries
