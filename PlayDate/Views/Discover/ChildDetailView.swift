@@ -2,6 +2,14 @@ import SwiftUI
 
 struct ChildDetailView: View {
     let child: Child
+    var chatSession: ChatSession? = nil
+    @Environment(AuthSession.self) private var session
+    @State private var photoIndex: Int = 0
+    @State private var eventsViewModel = EventsViewModel()
+
+    private var photoCount: Int { max(child.imageUrls.count, 1) }
+    private var hasPhotos: Bool { !child.imageUrls.isEmpty }
+    private var parentEvents: [Event] { eventsViewModel.upcomingEvents(joinedBy: child.parentId) }
 
     var body: some View {
         ScrollView {
@@ -15,6 +23,9 @@ struct ChildDetailView: View {
                     }
                     interestsSection
                     parentSection
+                    if !parentEvents.isEmpty {
+                        upcomingEventsSection
+                    }
                 }
                 .padding(20)
                 .padding(.bottom, 24)
@@ -26,15 +37,123 @@ struct ChildDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Theme.bg, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        .safeAreaInset(edge: .bottom) {
+            if let chatSession {
+                NavigationLink {
+                    ChatDetailView(session: chatSession)
+                } label: {
+                    Text("Start Chatting")
+                        .font(.system(size: 17, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Theme.primary, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(.bar)
+            }
+        }
+        .task {
+            let service: DataServiceProtocol = AppEnvironment.isPreview
+                ? MockDataService()
+                : FirestoreDataService(currentUserId: session.currentUser?.id)
+            eventsViewModel.attach(service: service, userId: session.currentUser?.id)
+            await eventsViewModel.load()
+        }
     }
 
+    private var upcomingEventsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Going to")
+                .font(.system(size: 18, weight: .heavy, design: .rounded))
+                .foregroundStyle(Theme.textMain)
+
+            VStack(spacing: 12) {
+                ForEach(parentEvents) { event in
+                    NavigationLink {
+                        EventDetailView(
+                            event: event,
+                            isJoined: eventsViewModel.isJoined(event),
+                            onToggleJoin: { eventsViewModel.toggleJoin(event) }
+                        )
+                    } label: {
+                        EventCard(
+                            event: event,
+                            isJoined: eventsViewModel.isJoined(event),
+                            onJoin: { eventsViewModel.toggleJoin(event) }
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
     private var hero: some View {
+        if hasPhotos {
+            ZStack(alignment: .bottom) {
+                TabView(selection: $photoIndex) {
+                    ForEach(Array(child.imageUrls.enumerated()), id: \.offset) { index, urlString in
+                        AsyncImage(url: URL(string: urlString)) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image.resizable().scaledToFill()
+                            case .empty:
+                                placeholderHero.overlay { ProgressView().tint(.white) }
+                            case .failure:
+                                placeholderHero
+                            @unknown default:
+                                placeholderHero
+                            }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                        .tag(index)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .frame(height: 320)
+                .clipped()
+
+                if photoCount > 1 {
+                    HStack(spacing: 4) {
+                        ForEach(0..<photoCount, id: \.self) { i in
+                            Capsule()
+                                .fill(i == photoIndex ? Color.white : Color.white.opacity(0.5))
+                                .frame(width: i == photoIndex ? 24 : 16, height: 4)
+                                .animation(.easeInOut(duration: 0.2), value: photoIndex)
+                        }
+                    }
+                    .padding(.bottom, 12)
+                }
+            }
+        } else {
+            placeholderHero.frame(height: 320)
+        }
+    }
+
+    private var parentAvatarPlaceholder: some View {
+        LinearGradient(
+            colors: Theme.palette(for: child.parentName ?? child.parentId),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay {
+            Image(systemName: "person.fill")
+                .font(.system(size: 20))
+                .foregroundStyle(.white.opacity(0.8))
+        }
+    }
+
+    private var placeholderHero: some View {
         LinearGradient(
             colors: Theme.palette(for: child.id),
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
-        .frame(height: 320)
         .overlay {
             Image(systemName: "figure.child.circle.fill")
                 .font(.system(size: 140))
@@ -99,18 +218,22 @@ struct ChildDetailView: View {
                 .foregroundStyle(Theme.textMain)
 
             HStack(spacing: 12) {
-                Circle()
-                    .fill(LinearGradient(
-                        colors: Theme.palette(for: child.parentName ?? child.parentId),
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
-                    .frame(width: 48, height: 48)
-                    .overlay {
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 20))
-                            .foregroundStyle(.white.opacity(0.8))
+                Group {
+                    if let urlString = child.parentImageUrl, let url = URL(string: urlString) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image.resizable().scaledToFill()
+                            default:
+                                parentAvatarPlaceholder
+                            }
+                        }
+                    } else {
+                        parentAvatarPlaceholder
                     }
+                }
+                .frame(width: 48, height: 48)
+                .clipShape(Circle())
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
@@ -140,7 +263,10 @@ struct ChildDetailView: View {
 }
 
 #Preview {
-    NavigationStack {
+    let s = AuthSession()
+    s.currentUser = .mockCurrentUser
+    return NavigationStack {
         ChildDetailView(child: Child.mockChildren[0])
+            .environment(s)
     }
 }

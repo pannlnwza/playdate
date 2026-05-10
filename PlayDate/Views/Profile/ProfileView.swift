@@ -4,6 +4,8 @@ struct ProfileView: View {
     @Environment(AuthSession.self) private var session
     @State private var showEditProfile = false
     @State private var showAddChild = false
+    @State private var editingChild: Child?
+    @State private var eventsViewModel = EventsViewModel()
 
     private var parent: Parent? { session.currentUser }
 
@@ -18,8 +20,8 @@ struct ProfileView: View {
                     ScrollView {
                         VStack(spacing: 20) {
                             profileHero
-                            statsRow
                             childrenSection
+                            joinedEventsSection
                             settingsSection
                         }
                         .padding(.bottom, 24)
@@ -28,12 +30,59 @@ struct ProfileView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .task {
+                let service: DataServiceProtocol = AppEnvironment.isPreview
+                    ? MockDataService()
+                    : FirestoreDataService(currentUserId: session.currentUser?.id)
+                eventsViewModel.attach(service: service, userId: session.currentUser?.id)
+                await eventsViewModel.load()
+            }
         }
         .sheet(isPresented: $showEditProfile) {
             EditProfileView()
         }
         .sheet(isPresented: $showAddChild) {
             AddChildView()
+        }
+        .sheet(item: $editingChild) { child in
+            AddChildView(editing: child)
+                .environment(session)
+        }
+    }
+
+    @ViewBuilder
+    private var joinedEventsSection: some View {
+        let joined = eventsViewModel.joinedUpcomingEvents
+        if !joined.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("Upcoming Events")
+                        .font(.system(size: 18, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Theme.textMain)
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+
+                LazyVStack(spacing: 12) {
+                    ForEach(joined) { event in
+                        NavigationLink {
+                            EventDetailView(
+                                event: event,
+                                isJoined: true,
+                                onToggleJoin: { eventsViewModel.toggleJoin(event) }
+                            )
+                        } label: {
+                            EventCard(
+                                event: event,
+                                isJoined: true,
+                                onJoin: { eventsViewModel.toggleJoin(event) }
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
         }
     }
 
@@ -62,12 +111,8 @@ struct ProfileView: View {
 
     private var profileHero: some View {
         VStack(spacing: 0) {
-            cover
-                .padding(.horizontal, 20)
-                .overlay(alignment: .bottom) {
-                    avatar.offset(y: 44)
-                }
-                .padding(.bottom, 44)
+            avatar
+                .padding(.top, 8)
 
             Text(parent?.name ?? "")
                 .font(.system(size: 24, weight: .heavy, design: .rounded))
@@ -101,47 +146,42 @@ struct ProfileView: View {
         }
     }
 
-    private var cover: some View {
-        LinearGradient(
-            colors: [Theme.primary, Theme.purple, Theme.secondary],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .frame(height: 120)
-        .overlay {
-            RadialGradient(
-                colors: [.white.opacity(0.15), .clear],
-                center: UnitPoint(x: 0.3, y: 0.5),
-                startRadius: 0,
-                endRadius: 120
-            )
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-    }
-
     private var avatar: some View {
         Group {
             if let image = session.profileImage {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
-            } else {
-                LinearGradient(
-                    colors: Theme.palette(for: parent?.id ?? "u"),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .overlay {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.white.opacity(0.6))
+            } else if let urlString = parent?.profileImageUrl, let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        avatarPlaceholder
+                    }
                 }
+            } else {
+                avatarPlaceholder
             }
         }
         .frame(width: 88, height: 88)
         .clipShape(Circle())
         .overlay { Circle().strokeBorder(Theme.bg, lineWidth: 4) }
         .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
+    }
+
+    private var avatarPlaceholder: some View {
+        LinearGradient(
+            colors: Theme.palette(for: parent?.id ?? "u"),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay {
+            Image(systemName: "person.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(.white.opacity(0.6))
+        }
     }
 
     private var verifiedBadge: some View {
@@ -155,36 +195,6 @@ struct ProfileView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
         .background(Color(red: 239/255, green: 246/255, blue: 1.0), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-
-    private var statsRow: some View {
-        HStack(spacing: 0) {
-            statItem(value: "\(parent?.matchesCount ?? 0)", label: "MATCHES")
-            divider
-            statItem(value: "\(parent?.playdatesCount ?? 0)", label: "PLAYDATES")
-            divider
-            statItem(value: String(format: "%.1f", parent?.rating ?? 0), label: "RATING")
-        }
-        .padding(.vertical, 8)
-    }
-
-    private func statItem(value: String, label: String) -> some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.system(size: 24, weight: .black, design: .rounded))
-                .foregroundStyle(Theme.textMain)
-            Text(label)
-                .font(.system(size: 11, weight: .heavy, design: .rounded))
-                .tracking(0.5)
-                .foregroundStyle(Theme.textMuted)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var divider: some View {
-        Rectangle()
-            .fill(Theme.textMuted.opacity(0.25))
-            .frame(width: 1, height: 32)
     }
 
     private var childrenSection: some View {
@@ -214,7 +224,12 @@ struct ProfileView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
                         ForEach(session.ownChildren) { child in
-                            ChildSummaryCard(child: child)
+                            Button {
+                                editingChild = child
+                            } label: {
+                                ChildSummaryCard(child: child)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal, 20)
@@ -282,6 +297,7 @@ struct ProfileView: View {
 
 #Preview {
     let s = AuthSession()
-    s.signIn(email: "x", password: "x")
+    s.currentUser = .mockCurrentUser
+    s.ownChildren = Parent.mockOwnChildren
     return ProfileView().environment(s)
 }

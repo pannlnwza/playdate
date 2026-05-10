@@ -3,11 +3,14 @@ import MapKit
 
 struct EventDetailView: View {
     let event: Event
-    @State private var isJoined = false
+    let isJoined: Bool
+    let onToggleJoin: () -> Void
 
     private var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: event.latitude, longitude: event.longitude)
     }
+
+    private var isPast: Bool { event.dateTime < Date() }
 
     var body: some View {
         ScrollView {
@@ -36,32 +39,40 @@ struct EventDetailView: View {
     }
 
     private var hero: some View {
-        ZStack(alignment: .bottomLeading) {
-            LinearGradient(
-                colors: [
-                    Color(red: 102/255, green: 126/255, blue: 234/255),
-                    Color(red: 118/255, green: 75/255, blue: 162/255)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+        heroBackground
             .frame(height: 240)
-            .overlay(alignment: .center) {
-                Image(systemName: categoryIcon)
-                    .font(.system(size: 110))
-                    .foregroundStyle(.white.opacity(0.25))
-            }
+            .clipped()
+    }
 
-            if event.isFeatured {
-                Text("FEATURED")
-                    .font(.system(size: 11, weight: .heavy, design: .rounded))
-                    .tracking(1.5)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(.white.opacity(0.2), in: RoundedRectangle(cornerRadius: 8))
-                    .padding(20)
+    @ViewBuilder
+    private var heroBackground: some View {
+        if let urlString = event.imageUrl, let url = URL(string: urlString) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().scaledToFill()
+                default:
+                    placeholderHero
+                }
             }
+        } else {
+            placeholderHero
+        }
+    }
+
+    private var placeholderHero: some View {
+        LinearGradient(
+            colors: [
+                Color(red: 102/255, green: 126/255, blue: 234/255),
+                Color(red: 118/255, green: 75/255, blue: 162/255)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay(alignment: .center) {
+            Image(systemName: categoryIcon)
+                .font(.system(size: 110))
+                .foregroundStyle(.white.opacity(0.25))
         }
     }
 
@@ -83,30 +94,14 @@ struct EventDetailView: View {
 
     private var infoCards: some View {
         VStack(spacing: 10) {
-            InfoRow(
-                icon: "calendar",
-                iconColor: Color(red: 99/255, green: 102/255, blue: 241/255),
-                title: "Date",
-                value: event.dateTime.formatted(date: .complete, time: .omitted)
-            )
-            InfoRow(
-                icon: "clock.fill",
-                iconColor: Color(red: 245/255, green: 158/255, blue: 11/255),
-                title: "Time",
-                value: "\(event.startTime) – \(event.endTime)"
-            )
-            InfoRow(
-                icon: "figure.2.and.child.holdinghands",
-                iconColor: Color(red: 16/255, green: 185/255, blue: 129/255),
-                title: "Ages",
-                value: "\(event.minAge)–\(event.maxAge) years"
-            )
-            InfoRow(
-                icon: "person.3.fill",
-                iconColor: Theme.primary,
-                title: "Attending",
-                value: "\(event.attendingFamilyCount) families"
-            )
+            InfoRow(icon: "calendar", title: "Date",
+                    value: event.dateTime.formatted(date: .complete, time: .omitted))
+            InfoRow(icon: "clock", title: "Time",
+                    value: "\(event.startTime) – \(event.endTime)")
+            InfoRow(icon: "figure.2.and.child.holdinghands", title: "Ages",
+                    value: "\(event.minAge)–\(event.maxAge) years")
+            InfoRow(icon: "person.3", title: "Attending",
+                    value: "\(event.participantIds.count) \(event.participantIds.count == 1 ? "family" : "families")")
         }
     }
 
@@ -145,23 +140,26 @@ struct EventDetailView: View {
 
     private var joinButton: some View {
         Button {
-            withAnimation(.snappy) { isJoined.toggle() }
+            withAnimation(.snappy) { onToggleJoin() }
         } label: {
             HStack(spacing: 8) {
-                if isJoined {
+                if isJoined && !isPast {
                     Image(systemName: "checkmark")
                         .font(.system(size: 16, weight: .heavy))
                 }
-                Text(isJoined ? "Going" : "Join Event")
+                Text(isPast ? "Event ended" : (isJoined ? "Going" : "Join Event"))
                     .font(.system(size: 17, weight: .heavy, design: .rounded))
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .background(isJoined ? AnyShapeStyle(Theme.likeGradient) : AnyShapeStyle(Theme.brandGradient), in: Capsule())
-            .shadow(color: (isJoined ? Theme.secondary : Theme.primary).opacity(0.35), radius: 12, y: 4)
+            .background(
+                isPast ? Color.gray.opacity(0.5) : (isJoined ? Theme.secondary : Theme.primary),
+                in: Capsule()
+            )
         }
         .buttonStyle(.plain)
+        .disabled(isPast)
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .background(.bar)
@@ -180,17 +178,15 @@ struct EventDetailView: View {
 
 private struct InfoRow: View {
     let icon: String
-    let iconColor: Color
     let title: String
     let value: String
 
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(iconColor)
-                .frame(width: 40, height: 40)
-                .background(iconColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Theme.textLight)
+                .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -206,12 +202,11 @@ private struct InfoRow: View {
         }
         .padding(14)
         .background(Theme.cardBg, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
     }
 }
 
 #Preview {
     NavigationStack {
-        EventDetailView(event: Event.mockEvents[0])
+        EventDetailView(event: Event.mockEvents[0], isJoined: false, onToggleJoin: {})
     }
 }

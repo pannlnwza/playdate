@@ -1,11 +1,17 @@
 import SwiftUI
 
 struct NotificationsView: View {
-    @State private var notifications: [AppNotification] = AppNotification.mockNotifications
+    @Environment(AuthSession.self) private var session
+    @Environment(NotificationsViewModel.self) private var viewModel
 
     var body: some View {
         Group {
-            if notifications.isEmpty {
+            if viewModel.isLoading {
+                ProgressView()
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Theme.bg)
+            } else if viewModel.notifications.isEmpty {
                 ContentUnavailableView(
                     "No notifications",
                     systemImage: "bell.slash",
@@ -15,11 +21,14 @@ struct NotificationsView: View {
                 .background(Theme.bg)
             } else {
                 List {
-                    ForEach(notifications) { notification in
+                    ForEach(viewModel.notifications) { notification in
                         NotificationRow(notification: notification)
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .onTapGesture {
+                                viewModel.markRead(notification)
+                            }
                     }
                     .onDelete(perform: delete)
                 }
@@ -31,9 +40,9 @@ struct NotificationsView: View {
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if !notifications.isEmpty {
+            if !viewModel.notifications.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Mark all read", action: markAllRead)
+                    Button("Mark all read") { viewModel.markAllRead() }
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                 }
             }
@@ -42,16 +51,10 @@ struct NotificationsView: View {
         .toolbarBackground(.visible, for: .navigationBar)
     }
 
-    private func markAllRead() {
-        notifications = notifications.map {
-            var copy = $0
-            copy.isRead = true
-            return copy
-        }
-    }
-
     private func delete(at offsets: IndexSet) {
-        notifications.remove(atOffsets: offsets)
+        for index in offsets {
+            viewModel.delete(viewModel.notifications[index])
+        }
     }
 }
 
@@ -121,7 +124,10 @@ private struct NotificationRow: View {
 }
 
 #Preview {
-    NavigationStack {
-        NotificationsView()
+    let s = AuthSession()
+    s.currentUser = .mockCurrentUser
+    let notifVM = NotificationsViewModel()
+    return NavigationStack {
+        NotificationsView().environment(s).environment(notifVM)
     }
 }
