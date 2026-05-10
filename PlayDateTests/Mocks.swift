@@ -112,7 +112,7 @@ class MockStorageService: StorageServiceProtocol {
     var uploadedData: Data?
     var uploadedPath: String?
     var deletedPath: String?
-    var mockUrl = URL(string: "https://firebasestorage.googleapis.com/v0/b/mock/o/image.jpg")!
+    var mockUrl = URL(string: "http://localhost:9000/playdate-media/mock-image.jpg")!
     
     func uploadImage(_ data: Data, path: String) async throws -> URL {
         if shouldReturnError {
