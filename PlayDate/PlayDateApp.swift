@@ -1,7 +1,12 @@
 import SwiftUI
+import FirebaseCore
 
 @main
 struct PlayDateApp: App {
+    init() {
+        FirebaseApp.configure()
+    }
+    
     @State private var session = AuthSession()
 
     var body: some Scene {
