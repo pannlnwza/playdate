@@ -4,7 +4,9 @@ import FirebaseCore
 @main
 struct PlayDateApp: App {
     init() {
-        FirebaseApp.configure()
+        if !AppEnvironment.isPreview && FirebaseApp.app() == nil {
+            FirebaseApp.configure()
+        }
     }
     
     @State private var session = AuthSession()
@@ -13,11 +15,20 @@ struct PlayDateApp: App {
         WindowGroup {
             AppRoot()
                 .environment(session)
+                .task {
+                    if !AppEnvironment.isPreview {
+                        await session.bootstrap()
+                        await MockSeeder.seedIfNeeded()
+                        if let userId = session.currentUser?.id {
+                            await MockSeeder.seedUserDataIfNeeded(userId: userId)
+                        }
+                    }
+                }
         }
     }
 }
 
-private struct AppRoot: View {
+struct AppRoot: View {
     @Environment(AuthSession.self) private var session
 
     var body: some View {
@@ -34,4 +45,15 @@ private struct AppRoot: View {
             }
         }
     }
+}
+
+#Preview("Logged out") {
+    AppRoot().environment(AuthSession())
+}
+
+#Preview("Logged in") {
+    let s = AuthSession()
+    s.currentUser = .mockCurrentUser
+    s.ownChildren = Parent.mockOwnChildren
+    return AppRoot().environment(s)
 }
