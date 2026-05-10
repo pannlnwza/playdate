@@ -106,3 +106,27 @@ class MockChatService: ChatServiceProtocol {
         deletedSessionId = sessionId
     }
 }
+
+class MockStorageService: StorageServiceProtocol {
+    var shouldReturnError = false
+    var uploadedData: Data?
+    var uploadedPath: String?
+    var deletedPath: String?
+    var mockUrl = URL(string: "http://localhost:9000/playdate-media/mock-image.jpg")!
+    
+    func uploadImage(_ data: Data, path: String) async throws -> URL {
+        if shouldReturnError {
+            throw NSError(domain: "Storage", code: 500, userInfo: [NSLocalizedDescriptionKey: "Upload failed"])
+        }
+        uploadedData = data
+        uploadedPath = path
+        return mockUrl
+    }
+    
+    func deleteImage(path: String) async throws {
+        if shouldReturnError {
+            throw NSError(domain: "Storage", code: 500, userInfo: [NSLocalizedDescriptionKey: "Delete failed"])
+        }
+        deletedPath = path
+    }
+}
