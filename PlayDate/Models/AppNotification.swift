@@ -8,7 +8,7 @@ enum AppNotificationKind: String, Codable, Hashable {
 }
 
 struct AppNotification: Identifiable, Codable, Hashable {
-    let id: String
+    var id: String
     var kind: AppNotificationKind
     var title: String
     var body: String

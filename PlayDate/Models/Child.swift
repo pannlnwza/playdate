@@ -10,6 +10,7 @@ struct Child: Codable, Identifiable {
     var imageUrls: [String]
 
     var parentName: String?
+    var parentImageUrl: String?
     var parentVerified: Bool
     var distanceKm: Double?
 
@@ -21,6 +22,7 @@ struct Child: Codable, Identifiable {
          hobbies: [String] = [],
          imageUrls: [String] = [],
          parentName: String? = nil,
+         parentImageUrl: String? = nil,
          parentVerified: Bool = false,
          distanceKm: Double? = nil) {
         self.id = id
@@ -31,6 +33,7 @@ struct Child: Codable, Identifiable {
         self.hobbies = hobbies
         self.imageUrls = imageUrls
         self.parentName = parentName
+        self.parentImageUrl = parentImageUrl
         self.parentVerified = parentVerified
         self.distanceKm = distanceKm
     }
