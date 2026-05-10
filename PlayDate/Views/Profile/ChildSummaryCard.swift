@@ -36,21 +36,34 @@ struct ChildSummaryCard: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
-            } else {
-                LinearGradient(
-                    colors: Theme.palette(for: child.id),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .overlay {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.white.opacity(0.6))
+            } else if let urlString = child.imageUrls.first, let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        avatarPlaceholder
+                    }
                 }
+            } else {
+                avatarPlaceholder
             }
         }
         .frame(width: 64, height: 64)
         .clipShape(Circle())
+    }
+
+    private var avatarPlaceholder: some View {
+        LinearGradient(
+            colors: Theme.palette(for: child.id),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay {
+            Image(systemName: "person.fill")
+                .font(.system(size: 28))
+                .foregroundStyle(.white.opacity(0.6))
+        }
     }
 
     private func interestTag(_ interest: String) -> some View {

@@ -2,20 +2,25 @@ import SwiftUI
 
 struct ConversationRow: View {
     let conversation: Conversation
+    @Environment(AuthSession.self) private var auth
+
+    private var currentUserId: String { auth.currentUser?.id ?? "" }
+    private var displayName: String { conversation.otherName(currentUserId: currentUserId) ?? "" }
+    private var displayImageUrl: String? { conversation.otherImageUrl(currentUserId: currentUserId) }
 
     var body: some View {
         HStack(spacing: 14) {
             avatar
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(headerText)
+                Text(displayName)
                     .font(.system(size: 15, weight: .heavy, design: .rounded))
                     .foregroundStyle(Theme.textMain)
                     .lineLimit(1)
 
-                Text(conversation.lastMessage ?? "")
+                Text(subtitleText)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.textLight)
+                    .foregroundStyle(subtitleColor)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -42,38 +47,56 @@ struct ConversationRow: View {
         .contentShape(RoundedRectangle(cornerRadius: 20))
     }
 
-    private var headerText: String {
-        let name = conversation.parentName ?? ""
-        if let context = conversation.childContext, !context.isEmpty {
-            return "\(name) \(context)"
-        }
-        return name
+    private var subtitleText: String {
+        if let last = conversation.lastMessage, !last.isEmpty { return last }
+        if let context = conversation.childContext, !context.isEmpty { return context }
+        return ""
+    }
+
+    private var subtitleColor: Color {
+        if conversation.lastMessage?.isEmpty == false { return Theme.textLight }
+        return Theme.primary
     }
 
     private var avatar: some View {
-        Circle()
-            .fill(
-                LinearGradient(
-                    colors: Theme.palette(for: conversation.id),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .frame(width: 56, height: 56)
-            .overlay {
-                Image(systemName: "person.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(.white.opacity(0.7))
-            }
-            .overlay(alignment: .bottomTrailing) {
-                if conversation.isOnline {
-                    Circle()
-                        .fill(Color(red: 34/255, green: 197/255, blue: 94/255))
-                        .frame(width: 14, height: 14)
-                        .overlay { Circle().strokeBorder(Theme.bg, lineWidth: 3) }
-                        .offset(x: 2, y: 2)
+        ZStack {
+            if let urlString = displayImageUrl, let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        avatarPlaceholder
+                    }
                 }
+            } else {
+                avatarPlaceholder
             }
+        }
+        .frame(width: 56, height: 56)
+        .clipShape(Circle())
+        .overlay(alignment: .bottomTrailing) {
+            if conversation.isOnline {
+                Circle()
+                    .fill(Color(red: 34/255, green: 197/255, blue: 94/255))
+                    .frame(width: 14, height: 14)
+                    .overlay { Circle().strokeBorder(Theme.bg, lineWidth: 3) }
+                    .offset(x: 2, y: 2)
+            }
+        }
+    }
+
+    private var avatarPlaceholder: some View {
+        LinearGradient(
+            colors: Theme.palette(for: conversation.id),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay {
+            Image(systemName: "person.fill")
+                .font(.system(size: 24))
+                .foregroundStyle(.white.opacity(0.7))
+        }
     }
 
     private func formatTime(_ date: Date) -> String {
@@ -92,11 +115,14 @@ struct ConversationRow: View {
 }
 
 #Preview {
-    VStack(spacing: 2) {
+    let s = AuthSession()
+    s.currentUser = .mockCurrentUser
+    return VStack(spacing: 2) {
         ConversationRow(conversation: ChatSession.mockSessions[0])
         ConversationRow(conversation: ChatSession.mockSessions[2])
         ConversationRow(conversation: ChatSession.mockSessions[3])
     }
     .padding()
     .background(Theme.bg)
+    .environment(s)
 }

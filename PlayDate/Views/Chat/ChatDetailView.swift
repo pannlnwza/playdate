@@ -3,8 +3,9 @@ import SwiftUI
 struct ChatDetailView: View {
     let session: ChatSession
     @Environment(AuthSession.self) private var auth
-    @State private var messages: [ChatMessage] = []
+    @State private var viewModel = ChatViewModel()
     @State private var draftText = ""
+    @State private var showChildSheet = false
     @FocusState private var inputFocused: Bool
 
     private var currentUserId: String { auth.currentUser?.id ?? "user-current" }
@@ -13,7 +14,7 @@ struct ChatDetailView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 8) {
-                    ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                    ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
                         MessageBubble(
                             message: message,
                             isMine: message.senderId == currentUserId,
@@ -28,15 +29,9 @@ struct ChatDetailView: View {
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
             .background(Theme.bg)
-            .onChange(of: messages.count) {
-                guard let last = messages.last else { return }
+            .onChange(of: viewModel.messages.count) {
+                guard let last = viewModel.messages.last else { return }
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                    proxy.scrollTo(last.id, anchor: .bottom)
-                }
-            }
-            .onAppear {
-                messages = ChatMessage.mockMessages(for: session.id)
-                if let last = messages.last {
                     proxy.scrollTo(last.id, anchor: .bottom)
                 }
             }
@@ -53,37 +48,82 @@ struct ChatDetailView: View {
         .toolbarBackground(Theme.bg, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .tint(Theme.primary)
+        .task {
+            let service: ChatServiceProtocol = AppEnvironment.isPreview
+                ? MockChatService()
+                : FirestoreChatService()
+            viewModel.attach(service: service, chatId: session.id, userId: currentUserId)
+        }
+        .onDisappear {
+            viewModel.detach()
+        }
+        .sheet(isPresented: $showChildSheet) {
+            if let childId = session.childIdForCurrentUser(currentUserId) {
+                NavigationStack {
+                    ChildDetailLoader(childId: childId, chatSession: nil)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button("Done") { showChildSheet = false }
+                            }
+                        }
+                }
+                .environment(auth)
+            }
+        }
     }
 
     private var principalTitle: some View {
-        HStack(spacing: 10) {
-            Circle()
-                .fill(LinearGradient(
-                    colors: Theme.palette(for: session.id),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
-                .frame(width: 32, height: 32)
-                .overlay {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.white.opacity(0.75))
-                }
+        let displayName = session.otherName(currentUserId: currentUserId) ?? ""
+        let displayImageUrl = session.otherImageUrl(currentUserId: currentUserId)
+        let visibleChildId = session.childIdForCurrentUser(currentUserId)
 
-            VStack(alignment: .leading, spacing: 0) {
-                Text(session.parentName ?? "")
-                    .font(.system(size: 15, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Theme.textMain)
-                if session.isOnline {
-                    Text("Online")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Color(red: 34/255, green: 197/255, blue: 94/255))
-                } else if let context = session.childContext {
-                    Text(context)
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.textLight)
+        return Button {
+            if visibleChildId != nil { showChildSheet = true }
+        } label: {
+            HStack(spacing: 10) {
+                Group {
+                    if let urlString = displayImageUrl, let url = URL(string: urlString) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image.resizable().scaledToFill()
+                            default:
+                                avatarPlaceholder
+                            }
+                        }
+                    } else {
+                        avatarPlaceholder
+                    }
+                }
+                .frame(width: 32, height: 32)
+                .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(displayName)
+                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Theme.textMain)
+                    if let context = session.childContext {
+                        Text(context)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Theme.textLight)
+                    }
                 }
             }
+        }
+        .buttonStyle(.plain)
+        .disabled(visibleChildId == nil)
+    }
+
+    private var avatarPlaceholder: some View {
+        LinearGradient(
+            colors: Theme.palette(for: session.id),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay {
+            Image(systemName: "person.fill")
+                .font(.system(size: 14))
+                .foregroundStyle(.white.opacity(0.75))
         }
     }
 
@@ -95,10 +135,10 @@ struct ChatDetailView: View {
                 .font(.system(size: 16, design: .rounded))
                 .padding(.vertical, 10)
                 .padding(.horizontal, 16)
-                .background(Color.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .background(Theme.cardBg, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(Color.black.opacity(0.08), lineWidth: 1)
+                        .strokeBorder(Color.black.opacity(0.15), lineWidth: 1)
                 }
 
             Button(action: send) {
@@ -122,17 +162,14 @@ struct ChatDetailView: View {
     }
 
     private func send() {
-        let trimmed = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        let message = ChatMessage(senderId: currentUserId, content: trimmed, timestamp: Date(), type: .text)
-        messages.append(message)
+        viewModel.send(draftText)
         draftText = ""
     }
 
     private func showsTail(at index: Int) -> Bool {
-        guard index < messages.count else { return false }
-        let current = messages[index]
-        let next = index + 1 < messages.count ? messages[index + 1] : nil
+        guard index < viewModel.messages.count else { return false }
+        let current = viewModel.messages[index]
+        let next = index + 1 < viewModel.messages.count ? viewModel.messages[index + 1] : nil
         return next?.senderId != current.senderId
     }
 }
@@ -207,8 +244,10 @@ private struct BubbleShape: Shape {
 }
 
 #Preview {
-    NavigationStack {
+    let s = AuthSession()
+    s.currentUser = .mockCurrentUser
+    return NavigationStack {
         ChatDetailView(session: ChatSession.mockSessions[0])
-            .environment({ let s = AuthSession(); s.signIn(email: "x", password: "x"); return s }())
+            .environment(s)
     }
 }

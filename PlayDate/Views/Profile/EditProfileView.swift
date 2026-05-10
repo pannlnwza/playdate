@@ -10,6 +10,11 @@ struct EditProfileView: View {
     @State private var bio = ""
     @State private var photoItem: PhotosPickerItem?
     @State private var pickedImage: UIImage?
+    @State private var pickedLatitude: Double?
+    @State private var pickedLongitude: Double?
+    @State private var isLocating = false
+    @State private var locationError: String?
+    @State private var locationService = LocationService()
 
     private var isValid: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
@@ -39,12 +44,31 @@ struct EditProfileView: View {
                     TextField("Location", text: $location, prompt: Text("e.g. Brooklyn, NY"))
                         .textContentType(.addressCity)
 
+                    Button(action: useCurrentLocation) {
+                        HStack {
+                            if isLocating {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "location.fill")
+                            }
+                            Text(isLocating ? "Locating…" : "Use my current location")
+                        }
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    }
+                    .disabled(isLocating)
+
+                    if let locationError {
+                        Text(locationError)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.red)
+                    }
+
                     TextField("Bio", text: $bio, axis: .vertical)
                         .lineLimit(3...6)
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Theme.bg)
+            .background(Theme.cardBg)
             .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -52,9 +76,13 @@ struct EditProfileView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save", action: save)
-                        .fontWeight(.heavy)
-                        .disabled(!isValid)
+                    if session.isLoading {
+                        ProgressView()
+                    } else {
+                        Button("Save", action: save)
+                            .fontWeight(.heavy)
+                            .disabled(!isValid)
+                    }
                 }
             }
             .onAppear(perform: load)
@@ -70,34 +98,36 @@ struct EditProfileView: View {
     }
 
     private var avatarPicker: some View {
-        PhotosPicker(selection: $photoItem, matching: .images) {
-            ZStack(alignment: .bottomTrailing) {
-                Group {
-                    if let image = displayImage {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        defaultAvatar
+        VStack(spacing: 10) {
+            Group {
+                if let image = displayImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else if let urlString = session.currentUser?.profileImageUrl, let url = URL(string: urlString) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().scaledToFill()
+                        default:
+                            defaultAvatar
+                        }
                     }
+                } else {
+                    defaultAvatar
                 }
-                .frame(width: 96, height: 96)
-                .clipShape(Circle())
-                .overlay { Circle().strokeBorder(.white, lineWidth: 4) }
-                .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
-
-                Circle()
-                    .fill(Theme.brandGradient)
-                    .frame(width: 30, height: 30)
-                    .overlay {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-                    .overlay { Circle().strokeBorder(Theme.bg, lineWidth: 3) }
             }
-            .padding(.vertical, 8)
+            .frame(width: 100, height: 100)
+            .clipShape(Circle())
+
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                Text(displayImage == nil && session.currentUser?.profileImageUrl == nil ? "Add Photo" : "Change Photo")
+                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Theme.primary)
+            }
         }
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
     }
 
     private var defaultAvatar: some View {
@@ -120,14 +150,44 @@ struct EditProfileView: View {
         bio = user.bio ?? ""
     }
 
+    private func useCurrentLocation() {
+        locationError = nil
+        isLocating = true
+        Task {
+            do {
+                let coord = try await locationService.requestCurrentLocation()
+                pickedLatitude = coord.coordinate.latitude
+                pickedLongitude = coord.coordinate.longitude
+                if let placeName = await locationService.reverseGeocode(coord) {
+                    location = placeName
+                }
+            } catch {
+                locationError = error.localizedDescription
+            }
+            isLocating = false
+        }
+    }
+
     private func save() {
-        session.updateProfile(name: name, location: location, bio: bio, image: pickedImage)
-        dismiss()
+        Task {
+            await session.updateProfile(
+                name: name,
+                location: location,
+                bio: bio,
+                latitude: pickedLatitude,
+                longitude: pickedLongitude,
+                image: pickedImage
+            )
+            if session.errorMessage == nil {
+                dismiss()
+            }
+        }
     }
 }
 
 #Preview {
     let s = AuthSession()
-    s.signIn(email: "x", password: "x")
+    s.currentUser = .mockCurrentUser
+    s.ownChildren = Parent.mockOwnChildren
     return EditProfileView().environment(s)
 }
