@@ -12,10 +12,9 @@ struct SettingsRow: View {
         VStack(spacing: 0) {
             HStack(spacing: 14) {
                 Image(systemName: icon)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(iconColor)
-                    .frame(width: 40, height: 40)
-                    .background(iconBg, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Theme.textLight)
+                    .frame(width: 28)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
