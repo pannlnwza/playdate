@@ -15,13 +15,14 @@ struct Parent: Codable, Identifiable {
     var matchesCount: Int
     var playdatesCount: Int
     var rating: Double
-    var reviews: [Review]
-    var badges: [Badge]
+    var reviews: [Review]?
+    var badges: [Badge]?
 
     var averageRating: Double {
-        guard !reviews.isEmpty else { return 0 }
-        let sum = reviews.reduce(0) { $0 + Double($1.rating) }
-        return sum / Double(reviews.count)
+        let list = reviews ?? []
+        guard !list.isEmpty else { return 0 }
+        let sum = list.reduce(0) { $0 + Double($1.rating) }
+        return sum / Double(list.count)
     }
 
     init(id: String = UUID().uuidString,

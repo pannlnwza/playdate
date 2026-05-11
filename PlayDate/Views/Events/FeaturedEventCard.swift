@@ -189,6 +189,10 @@ struct FeaturedEventCard: View {
         case .arts: return "paintpalette.fill"
         case .music: return "music.note"
         case .storytime: return "book.fill"
+        case .educational: return "graduationcap.fill"
+        case .sensory: return "hand.raised.fill"
+        case .fitness: return "figure.run"
+        case .social: return "person.3.fill"
         }
     }
 }

@@ -150,16 +150,16 @@ struct EventsView: View {
     private var categoryScroll: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                CategoryPill(label: "All", isActive: viewModel.selectedCategory == nil) {
-                    withAnimation(.snappy) { viewModel.selectedCategory = nil }
+                CategoryPill(label: "All", isActive: viewModel.selectedCategories.isEmpty) {
+                    withAnimation(.snappy) { viewModel.selectedCategories = [] }
                 }
 
                 ForEach(EventCategory.allCases) { category in
                     CategoryPill(
                         label: category.rawValue,
-                        isActive: viewModel.selectedCategory == category
+                        isActive: viewModel.selectedCategories.contains(category)
                     ) {
-                        withAnimation(.snappy) { viewModel.selectedCategory = category }
+                        withAnimation(.snappy) { viewModel.selectedCategories = [category] }
                     }
                 }
             }

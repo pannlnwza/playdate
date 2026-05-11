@@ -17,8 +17,8 @@ struct Event: Codable, Identifiable {
     var category: EventCategory
     var attendingFamilyCount: Int
     var isFeatured: Bool
-    var tags: [String]
-    var isRecurring: Bool
+    var tags: [String]?
+    var isRecurring: Bool?
     var frequency: RecurrenceFrequency?
     var imageUrl: String?
 
@@ -39,7 +39,7 @@ struct Event: Codable, Identifiable {
          isFeatured: Bool = false,
          tags: [String] = [],
          isRecurring: Bool = false,
-         frequency: RecurrenceFrequency? = nil) {
+         frequency: RecurrenceFrequency? = nil,
          imageUrl: String? = nil) {
         self.id = id
         self.title = title
