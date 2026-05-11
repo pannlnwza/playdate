@@ -3,11 +3,14 @@ import Observation
 
 @Observable
 final class EventsViewModel {
-    var events: [Event]
-    var selectedCategories: Set<EventCategory> = []
+    // --- Merged Properties ---
+    var events: [Event] = []
+    var selectedCategories: Set<EventCategory> = [] // Support multiple categories
     var searchText: String = ""
-    var joinedEventIDs: Set<String> = []
+    var isLoading: Bool = false
+    var errorMessage: String?
     
+    // Properties from enhancement-1
     var startDate: Date?
     var endDate: Date?
     
@@ -18,19 +21,34 @@ final class EventsViewModel {
     
     var sortOption: SortOption = .date
 
-    init(events: [Event] = Event.mockEvents) {
+    private var dataService: DataServiceProtocol?
+    private var userId: String?
+
+    init(events: [Event] = []) {
         self.events = events
     }
 
-    var featuredEvent: Event? {
-        events.first { $0.isFeatured }
+    func attach(service: DataServiceProtocol, userId: String?) {
+        self.dataService = service
+        self.userId = userId
     }
 
+    var featuredEvent: Event? {
+        let now = Date()
+        return events
+            .filter { $0.dateTime >= now }
+            .max { $0.participantIds.count < $1.participantIds.count }
+    }
+
+    // --- Merged Filtering & Sorting Logic ---
     var upcomingEvents: [Event] {
+        let featuredId = featuredEvent?.id
+        
         let filtered = events.filter { event in
-            guard !event.isFeatured else { return false }
+            // Exclude featured event from the main list
+            if event.id == featuredId { return false }
             
-            // Category filter
+            // Multi-category filter
             if !selectedCategories.isEmpty, !selectedCategories.contains(event.category) {
                 return false
             }
@@ -49,25 +67,73 @@ final class EventsViewModel {
             return true
         }
         
-        // Sorting
+        // Sorting logic
         switch sortOption {
         case .date:
             return filtered.sorted { $0.dateTime < $1.dateTime }
         case .participantCount:
-            return filtered.sorted { $0.attendingFamilyCount > $1.attendingFamilyCount }
+            return filtered.sorted { $0.participantIds.count > $1.participantIds.count }
         }
+    }
+
+    // --- Async Methods from Main ---
+    func load() async {
+        guard let dataService else { return }
+        isLoading = true
+        errorMessage = nil
+        do {
+            events = try await dataService.fetchEvents().sorted { $0.dateTime < $1.dateTime }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
     }
 
     func toggleJoin(_ event: Event) {
-        if joinedEventIDs.contains(event.id) {
-            joinedEventIDs.remove(event.id)
+        guard let userId, let dataService,
+              let index = events.firstIndex(where: { $0.id == event.id }) else { return }
+
+        let wasJoined = events[index].participantIds.contains(userId)
+        if wasJoined {
+            events[index].participantIds.removeAll { $0 == userId }
         } else {
-            joinedEventIDs.insert(event.id)
+            events[index].participantIds.append(userId)
+        }
+
+        Task {
+            do {
+                if wasJoined {
+                    try await dataService.leaveEvent(eventId: event.id, userId: userId)
+                } else {
+                    try await dataService.joinEvent(eventId: event.id, userId: userId)
+                }
+            } catch {
+                // Rollback on failure
+                if wasJoined {
+                    events[index].participantIds.append(userId)
+                } else {
+                    events[index].participantIds.removeAll { $0 == userId }
+                }
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
+    var joinedUpcomingEvents: [Event] {
+        guard let userId else { return [] }
+        return upcomingEvents(joinedBy: userId)
+    }
+
+    func upcomingEvents(joinedBy participantId: String) -> [Event] {
+        let now = Date()
+        return events
+            .filter { $0.participantIds.contains(participantId) && $0.dateTime >= now }
+            .sorted { $0.dateTime < $1.dateTime }
+    }
+
     func isJoined(_ event: Event) -> Bool {
-        joinedEventIDs.contains(event.id)
+        guard let userId else { return false }
+        return event.participantIds.contains(userId)
     }
     
     func clearFilters() {
@@ -75,5 +141,6 @@ final class EventsViewModel {
         searchText = ""
         startDate = nil
         endDate = nil
+        sortOption = .date
     }
 }

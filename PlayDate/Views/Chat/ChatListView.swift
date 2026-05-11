@@ -1,10 +1,11 @@
 import SwiftUI
 
 struct ChatListView: View {
-    @State private var sessions: [ChatSession] = ChatSession.mockSessions
+    @Environment(AuthSession.self) private var session
+    @Environment(ChatListViewModel.self) private var viewModel
 
     private var recentMatches: [ChatSession] {
-        Array(sessions.prefix(4))
+        Array(viewModel.sessions.prefix(4))
     }
 
     var body: some View {
@@ -15,14 +16,29 @@ struct ChatListView: View {
                 VStack(spacing: 0) {
                     header
 
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            newMatchesSection
-                            chatListSection
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .controlSize(.large)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if viewModel.sessions.isEmpty {
+                        ContentUnavailableView(
+                            "No conversations yet",
+                            systemImage: "message",
+                            description: Text("Swipe right on Discover to start a chat.")
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 16) {
+                                if !recentMatches.isEmpty {
+                                    newMatchesSection
+                                }
+                                chatListSection
+                            }
+                            .padding(.bottom, 24)
                         }
-                        .padding(.bottom, 24)
+                        .scrollIndicators(.hidden)
                     }
-                    .scrollIndicators(.hidden)
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -52,12 +68,21 @@ struct ChatListView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
                     ForEach(recentMatches) { match in
-                        NavigationLink {
-                            ChatDetailView(session: match)
-                        } label: {
-                            NewMatchAvatar(conversation: match)
+                        if let childId = match.childIdForCurrentUser(session.currentUser?.id ?? "") {
+                            NavigationLink {
+                                ChildDetailLoader(childId: childId, chatSession: match)
+                            } label: {
+                                NewMatchAvatar(conversation: match)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            NavigationLink {
+                                ChatDetailView(session: match)
+                            } label: {
+                                NewMatchAvatar(conversation: match)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 24)
@@ -68,7 +93,7 @@ struct ChatListView: View {
 
     private var chatListSection: some View {
         LazyVStack(spacing: 2) {
-            ForEach(sessions) { session in
+            ForEach(viewModel.sessions) { session in
                 NavigationLink {
                     ChatDetailView(session: session)
                 } label: {
@@ -82,6 +107,8 @@ struct ChatListView: View {
 }
 
 #Preview {
-    ChatListView()
-        .environment(AuthSession())
+    let s = AuthSession()
+    s.currentUser = .mockCurrentUser
+    let chatVM = ChatListViewModel()
+    return ChatListView().environment(s).environment(chatVM)
 }

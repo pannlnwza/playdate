@@ -1,9 +1,13 @@
 import SwiftUI
 
 struct EventsView: View {
+    @Environment(AuthSession.self) private var session
     @State private var viewModel = EventsViewModel()
+    @State private var showCreateEvent = false
 
     var body: some View {
+        @Bindable var viewModel = viewModel
+
         NavigationStack {
             ZStack {
                 Theme.bg.ignoresSafeArea()
@@ -16,42 +20,57 @@ struct EventsView: View {
                             searchBar
                             categoryScroll
 
-                            if let featured = viewModel.featuredEvent {
-                                sectionTitle("Featured")
-                                NavigationLink {
-                                    EventDetailView(event: featured)
-                                } label: {
-                                    FeaturedEventCard(event: featured)
-                                        .padding(.horizontal, 20)
-                                }
-                                .buttonStyle(.plain)
-                            }
-
-                            sectionTitle("Upcoming")
-
-                            if viewModel.upcomingEvents.isEmpty {
-                                ContentUnavailableView(
-                                    "No matching events",
-                                    systemImage: "magnifyingglass",
-                                    description: Text("Try a different category or search term.")
-                                )
-                                .padding(.top, 40)
+                            if viewModel.isLoading {
+                                ProgressView()
+                                    .controlSize(.large)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.top, 40)
                             } else {
-                                LazyVStack(spacing: 12) {
-                                    ForEach(viewModel.upcomingEvents) { event in
-                                        NavigationLink {
-                                            EventDetailView(event: event)
-                                        } label: {
-                                            EventCard(
-                                                event: event,
-                                                isJoined: viewModel.isJoined(event),
-                                                onJoin: { viewModel.toggleJoin(event) }
-                                            )
-                                        }
-                                        .buttonStyle(.plain)
+                                if let featured = viewModel.featuredEvent {
+                                    sectionTitle("Featured")
+                                    NavigationLink {
+                                        EventDetailView(
+                                            event: featured,
+                                            isJoined: viewModel.isJoined(featured),
+                                            onToggleJoin: { viewModel.toggleJoin(featured) }
+                                        )
+                                    } label: {
+                                        FeaturedEventCard(event: featured)
+                                            .padding(.horizontal, 20)
                                     }
+                                    .buttonStyle(.plain)
                                 }
-                                .padding(.horizontal, 20)
+
+                                sectionTitle("Upcoming")
+
+                                if viewModel.upcomingEvents.isEmpty {
+                                    ContentUnavailableView(
+                                        "No matching events",
+                                        systemImage: "magnifyingglass",
+                                        description: Text("Try a different category or search term.")
+                                    )
+                                    .padding(.top, 40)
+                                } else {
+                                    LazyVStack(spacing: 12) {
+                                        ForEach(viewModel.upcomingEvents) { event in
+                                            NavigationLink {
+                                                EventDetailView(
+                                                    event: event,
+                                                    isJoined: viewModel.isJoined(event),
+                                                    onToggleJoin: { viewModel.toggleJoin(event) }
+                                                )
+                                            } label: {
+                                                EventCard(
+                                                    event: event,
+                                                    isJoined: viewModel.isJoined(event),
+                                                    onJoin: { viewModel.toggleJoin(event) }
+                                                )
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
+                                    .padding(.horizontal, 20)
+                                }
                             }
                         }
                         .padding(.bottom, 24)
@@ -60,6 +79,19 @@ struct EventsView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .task {
+                let service: DataServiceProtocol = AppEnvironment.isPreview
+                    ? MockDataService()
+                    : FirestoreDataService(currentUserId: session.currentUser?.id)
+                viewModel.attach(service: service, userId: session.currentUser?.id)
+                await viewModel.load()
+            }
+            .sheet(isPresented: $showCreateEvent) {
+                CreateEventView { _ in
+                    Task { await viewModel.load() }
+                }
+                .environment(session)
+            }
         }
     }
 
@@ -69,6 +101,15 @@ struct EventsView: View {
                 .font(.system(size: 28, weight: .black, design: .rounded))
                 .foregroundStyle(Theme.textMain)
             Spacer()
+            Button {
+                showCreateEvent = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(Theme.textMain)
+                    .frame(width: 42, height: 42)
+                    .glassEffect(.regular.interactive(), in: Circle())
+            }
         }
         .padding(.horizontal, 24)
         .padding(.top, 8)
@@ -76,7 +117,9 @@ struct EventsView: View {
     }
 
     private var searchBar: some View {
-        HStack(spacing: 12) {
+        @Bindable var viewModel = viewModel
+
+        return HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Theme.textMuted)
@@ -162,5 +205,7 @@ private struct CategoryPill: View {
 }
 
 #Preview {
-    EventsView()
+    let s = AuthSession()
+    s.currentUser = .mockCurrentUser
+    return EventsView().environment(s)
 }

@@ -8,9 +8,9 @@ struct OnboardingView: View {
             VStack(spacing: 28) {
                 Spacer()
 
-                Image(systemName: "heart.fill")
+                Image(systemName: "figure.2.and.child.holdinghands")
                     .font(.system(size: 64))
-                    .foregroundStyle(Theme.brandGradient)
+                    .foregroundStyle(Theme.primary)
 
                 VStack(spacing: 8) {
                     Text("Welcome to PlayDate!")
@@ -25,7 +25,7 @@ struct OnboardingView: View {
 
                 VStack(alignment: .leading, spacing: 20) {
                     OnboardingBullet(
-                        icon: "figure.2.and.child.holdinghands",
+                        icon: "hand.thumbsup.fill",
                         iconColor: Theme.primary,
                         text: "Match with families nearby"
                     )
@@ -90,6 +90,8 @@ private struct OnboardingBullet: View {
 }
 
 #Preview {
-    OnboardingView()
-        .environment({ let s = AuthSession(); s.signUp(name: "Test", email: "t@t.com", password: "123456"); return s }())
+    let s = AuthSession()
+    s.currentUser = .mockCurrentUser
+    s.needsOnboarding = true
+    return OnboardingView().environment(s)
 }

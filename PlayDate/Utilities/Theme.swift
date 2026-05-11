@@ -10,8 +10,8 @@ enum Theme {
     static let pink = Color(red: 249/255, green: 168/255, blue: 212/255)
     static let orange = Color(red: 251/255, green: 146/255, blue: 60/255)
 
-    static let bg = Color(red: 1.0, green: 248/255, blue: 240/255)
-    static let cardBg = Color.white
+    static let bg = Color.white
+    static let cardBg = Color(red: 248/255, green: 249/255, blue: 250/255)
     static let textMain = Color(red: 45/255, green: 52/255, blue: 54/255)
     static let textLight = Color(red: 99/255, green: 110/255, blue: 114/255)
     static let textMuted = Color(red: 178/255, green: 190/255, blue: 195/255)

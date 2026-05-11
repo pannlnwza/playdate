@@ -2,6 +2,8 @@ import SwiftUI
 
 struct MatchView: View {
     let child: Child
+    let ownChild: Child?
+    var onSendMessage: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
     @State private var iconPulse: Bool = false
 
@@ -61,7 +63,11 @@ struct MatchView: View {
 
     private var avatars: some View {
         HStack(spacing: -16) {
-            avatar(name: "Lily", colors: [Theme.purple, Theme.blue])
+            avatar(
+                name: ownChild?.name ?? "Your child",
+                imageUrl: ownChild?.imageUrls.first,
+                paletteSeed: ownChild?.id ?? "own"
+            )
 
             Image(systemName: "party.popper.fill")
                 .font(.system(size: 22, weight: .bold))
@@ -80,22 +86,34 @@ struct MatchView: View {
                 .scaleEffect(iconPulse ? 1.15 : 1.0)
                 .zIndex(1)
 
-            avatar(name: child.name, colors: Theme.palette(for: child.id))
+            avatar(
+                name: child.name,
+                imageUrl: child.imageUrls.first,
+                paletteSeed: child.id
+            )
         }
     }
 
-    private func avatar(name: String, colors: [Color]) -> some View {
+    private func avatar(name: String, imageUrl: String?, paletteSeed: String) -> some View {
         ZStack(alignment: .bottom) {
-            Circle()
-                .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 110, height: 110)
-                .overlay {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 44))
-                        .foregroundStyle(.white.opacity(0.6))
+            Group {
+                if let urlString = imageUrl, let url = URL(string: urlString) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().scaledToFill()
+                        default:
+                            placeholder(seed: paletteSeed)
+                        }
+                    }
+                } else {
+                    placeholder(seed: paletteSeed)
                 }
-                .overlay { Circle().strokeBorder(.white.opacity(0.9), lineWidth: 4) }
-                .shadow(color: .black.opacity(0.3), radius: 16, y: 8)
+            }
+            .frame(width: 110, height: 110)
+            .clipShape(Circle())
+            .overlay { Circle().strokeBorder(.white.opacity(0.9), lineWidth: 4) }
+            .shadow(color: .black.opacity(0.3), radius: 16, y: 8)
 
             Text(name)
                 .font(.system(size: 12, weight: .heavy, design: .rounded))
@@ -104,18 +122,30 @@ struct MatchView: View {
         }
     }
 
+    private func placeholder(seed: String) -> some View {
+        LinearGradient(
+            colors: Theme.palette(for: seed),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay {
+            Image(systemName: "person.fill")
+                .font(.system(size: 44))
+                .foregroundStyle(.white.opacity(0.6))
+        }
+    }
+
     private var actions: some View {
         VStack(spacing: 12) {
             Button {
-                dismiss()
+                onSendMessage()
             } label: {
                 Text("Send a Message")
                     .font(.system(size: 15, weight: .heavy, design: .rounded))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .background(Theme.brandGradient, in: Capsule())
-                    .shadow(color: Theme.primary.opacity(0.4), radius: 16, y: 6)
+                    .background(Theme.primary, in: Capsule())
             }
             .buttonStyle(.plain)
 
@@ -136,5 +166,5 @@ struct MatchView: View {
 }
 
 #Preview {
-    MatchView(child: Child.mockChildren[0])
+    MatchView(child: Child.mockChildren[0], ownChild: Parent.mockOwnChildren[0])
 }

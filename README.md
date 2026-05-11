@@ -1,42 +1,34 @@
-# PlayDate iOS App
+# PlayDate
 
-PlayDate is a dedicated iOS mobile application designed to bridge the gap between digital interaction and physical play.
+A SwiftUI iOS app for parents to find playmates for their kids. Swipe, match, chat, and join family events nearby.
 
-## Docker Setup (Media Storage)
+## Features
 
-To store and serve media files locally, we use **MinIO** running in a Docker container.
+- Email/password auth, persisted across launches
+- Tinder-style swipe with filters (age, hobbies, same-event)
+- Real reciprocity matching, with auto-match for seeded demo parents
+- Real-time chat with unread badges
+- Browse, join, and create events with cover photos and map-search location
+- Live notifications with read tracking
+- Profile with photo gallery, location, and child management
 
-### 1. Prerequisites
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
+## Tech Stack
 
-### 2. Start the Storage Server
-Open your terminal in the project root and run:
-```bash
-docker-compose up -d
-```
+| Area | Choice |
+|---|---|
+| UI | SwiftUI (iOS 17+) |
+| Architecture | MVVM with `@Observable` view models |
+| Auth | Firebase Authentication |
+| Database | Cloud Firestore (real-time listeners) |
+| Image Storage | Base64 in Firestore documents (no Firebase Storage required) |
+| Location | CoreLocation + MapKit |
 
-### 3. Access MinIO Console
-Once the container is running, you can manage your files and buckets through the web interface:
-- **URL**: [http://localhost:9001](http://localhost:9001)
-- **Username**: `minioadmin`
-- **Password**: `minioadminpassword`
+## Getting Started
 
-### 4. Create a Bucket
-Before uploading files from the app, you need to create a bucket:
-1. Log in to the MinIO Console.
-2. Click on **Buckets** -> **Create Bucket**.
-3. Name it `playdate-media`.
-4. (Optional) Set the Access Policy to **Public** if you want images to be viewable via direct links without authentication.
-
-### 5. App Configuration
-The app is configured to connect to `http://localhost:9000` for file operations. 
-> **Note**: If testing on a physical device, replace `localhost` with your computer's local IP address.
-
----
-
-## Development
-
-- **Architecture**: MVVM
-- **UI Framework**: SwiftUI
-- **Storage**: MinIO (via Docker)
-- **Database/Auth**: Firebase (Spark Plan)
+1. Open `PlayDate.xcodeproj` in Xcode 16+ (iOS 17+ deployment target).
+2. Set up a Firebase project and drop your `GoogleService-Info.plist` into `PlayDate/`. Follow the [official Firebase iOS guide](https://firebase.google.com/docs/ios/setup). The plist is gitignored.
+3. In Firebase Console, enable **Authentication → Email/Password** and create a **Firestore Database**.
+4. In the Xcode target's **Info** tab, add:
+   - `Privacy - Location When In Use Usage Description`
+   - `Privacy - Photo Library Usage Description`
+5. Build and run. On first launch, demo parents, kids, and events seed into Firestore automatically.

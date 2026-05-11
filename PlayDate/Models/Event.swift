@@ -20,6 +20,7 @@ struct Event: Codable, Identifiable {
     var tags: [String]
     var isRecurring: Bool
     var frequency: RecurrenceFrequency?
+    var imageUrl: String?
 
     init(id: String = UUID().uuidString,
          title: String,
@@ -39,6 +40,7 @@ struct Event: Codable, Identifiable {
          tags: [String] = [],
          isRecurring: Bool = false,
          frequency: RecurrenceFrequency? = nil) {
+         imageUrl: String? = nil) {
         self.id = id
         self.title = title
         self.description = description
@@ -57,6 +59,7 @@ struct Event: Codable, Identifiable {
         self.tags = tags
         self.isRecurring = isRecurring
         self.frequency = frequency
+        self.imageUrl = imageUrl
     }
 
     var location: String { locationName }
