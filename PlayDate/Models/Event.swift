@@ -17,6 +17,9 @@ struct Event: Codable, Identifiable {
     var category: EventCategory
     var attendingFamilyCount: Int
     var isFeatured: Bool
+    var tags: [String]?
+    var isRecurring: Bool?
+    var frequency: RecurrenceFrequency?
     var imageUrl: String?
 
     init(id: String = UUID().uuidString,
@@ -34,6 +37,9 @@ struct Event: Codable, Identifiable {
          category: EventCategory = .outdoors,
          attendingFamilyCount: Int = 0,
          isFeatured: Bool = false,
+         tags: [String] = [],
+         isRecurring: Bool = false,
+         frequency: RecurrenceFrequency? = nil,
          imageUrl: String? = nil) {
         self.id = id
         self.title = title
@@ -50,6 +56,9 @@ struct Event: Codable, Identifiable {
         self.category = category
         self.attendingFamilyCount = attendingFamilyCount
         self.isFeatured = isFeatured
+        self.tags = tags
+        self.isRecurring = isRecurring
+        self.frequency = frequency
         self.imageUrl = imageUrl
     }
 
@@ -65,6 +74,17 @@ enum EventCategory: String, Codable, CaseIterable, Identifiable, Hashable {
     case arts = "Arts"
     case music = "Music"
     case storytime = "Storytime"
+    case educational = "Educational"
+    case sensory = "Sensory Play"
+    case fitness = "Fitness"
+    case social = "Social Gathering"
 
     var id: String { rawValue }
+}
+
+enum RecurrenceFrequency: String, Codable, CaseIterable {
+    case daily
+    case weekly
+    case biweekly
+    case monthly
 }

@@ -146,6 +146,26 @@ struct EventCard: View {
                 [Color(red: 220/255, green: 252/255, blue: 231/255), Color(red: 187/255, green: 247/255, blue: 208/255)],
                 Color(red: 34/255, green: 197/255, blue: 94/255)
             )
+        case .educational:
+            return (
+                [Color(red: 219/255, green: 234/255, blue: 254/255), Color(red: 191/255, green: 219/255, blue: 254/255)],
+                Color(red: 59/255, green: 130/255, blue: 246/255)
+            )
+        case .sensory:
+            return (
+                [Color(red: 252/255, green: 231/255, blue: 243/255), Color(red: 251/255, green: 207/255, blue: 232/255)],
+                Color(red: 236/255, green: 72/255, blue: 153/255)
+            )
+        case .fitness:
+            return (
+                [Color(red: 207/255, green: 250/255, blue: 254/255), Color(red: 165/255, green: 243/255, blue: 252/255)],
+                Color(red: 6/255, green: 182/255, blue: 212/255)
+            )
+        case .social:
+            return (
+                [Color(red: 255/255, green: 237/255, blue: 213/255), Color(red: 254/255, green: 215/255, blue: 170/255)],
+                Color(red: 249/255, green: 115/255, blue: 22/255)
+            )
         }
     }
 }

@@ -3,11 +3,23 @@ import Observation
 
 @Observable
 final class EventsViewModel {
+    // --- Merged Properties ---
     var events: [Event] = []
-    var selectedCategory: EventCategory?
+    var selectedCategories: Set<EventCategory> = [] // Support multiple categories
     var searchText: String = ""
     var isLoading: Bool = false
     var errorMessage: String?
+    
+    // Properties from enhancement-1
+    var startDate: Date?
+    var endDate: Date?
+    
+    enum SortOption {
+        case date
+        case participantCount
+    }
+    
+    var sortOption: SortOption = .date
 
     private var dataService: DataServiceProtocol?
     private var userId: String?
@@ -28,20 +40,43 @@ final class EventsViewModel {
             .max { $0.participantIds.count < $1.participantIds.count }
     }
 
+    // --- Merged Filtering & Sorting Logic ---
     var upcomingEvents: [Event] {
         let featuredId = featuredEvent?.id
-        return events.filter { event in
+        
+        let filtered = events.filter { event in
+            // Exclude featured event from the main list
             if event.id == featuredId { return false }
-            if let category = selectedCategory, event.category != category { return false }
+            
+            // Multi-category filter
+            if !selectedCategories.isEmpty, !selectedCategories.contains(event.category) {
+                return false
+            }
+            
+            // Search text filter
             if !searchText.isEmpty,
                !event.title.localizedCaseInsensitiveContains(searchText),
                !event.location.localizedCaseInsensitiveContains(searchText) {
                 return false
             }
+            
+            // Date range filter
+            if let start = startDate, event.dateTime < start { return false }
+            if let end = endDate, event.dateTime > end { return false }
+            
             return true
+        }
+        
+        // Sorting logic
+        switch sortOption {
+        case .date:
+            return filtered.sorted { $0.dateTime < $1.dateTime }
+        case .participantCount:
+            return filtered.sorted { $0.participantIds.count > $1.participantIds.count }
         }
     }
 
+    // --- Async Methods from Main ---
     func load() async {
         guard let dataService else { return }
         isLoading = true
@@ -73,6 +108,7 @@ final class EventsViewModel {
                     try await dataService.joinEvent(eventId: event.id, userId: userId)
                 }
             } catch {
+                // Rollback on failure
                 if wasJoined {
                     events[index].participantIds.append(userId)
                 } else {
@@ -98,5 +134,13 @@ final class EventsViewModel {
     func isJoined(_ event: Event) -> Bool {
         guard let userId else { return false }
         return event.participantIds.contains(userId)
+    }
+    
+    func clearFilters() {
+        selectedCategories.removeAll()
+        searchText = ""
+        startDate = nil
+        endDate = nil
+        sortOption = .date
     }
 }
