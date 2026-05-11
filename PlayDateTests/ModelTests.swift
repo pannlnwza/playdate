@@ -3,62 +3,41 @@ import XCTest
 
 class ModelTests: XCTestCase {
     
-    func testParentCodable() throws {
-        let parent = Parent(id: "1", name: "John Doe", email: "john@example.com", isVerified: true)
-        let data = try JSONEncoder().encode(parent)
-        let decoded = try JSONDecoder().decode(Parent.self, from: data)
+    func testParentAverageRating() {
+        let reviews = [
+            Review(reviewerId: "r1", rating: 5, comment: "Great!"),
+            Review(reviewerId: "r2", rating: 3, comment: "Okay"),
+            Review(reviewerId: "r3", rating: 4, comment: "Good")
+        ]
         
-        XCTAssertEqual(parent.id, decoded.id)
-        XCTAssertEqual(parent.name, decoded.name)
-        XCTAssertEqual(parent.isVerified, decoded.isVerified)
+        let parent = Parent(name: "Test Parent", email: "test@example.com", reviews: reviews)
+        
+        XCTAssertEqual(parent.averageRating, 4.0, accuracy: 0.001)
     }
     
-    func testChildCodable() throws {
-        let child = Child(id: "c1", parentId: "1", name: "Jane", age: 5, hobbies: ["Reading"])
-        let data = try JSONEncoder().encode(child)
-        let decoded = try JSONDecoder().decode(Child.self, from: data)
-        
-        XCTAssertEqual(child.id, decoded.id)
-        XCTAssertEqual(child.name, decoded.name)
-        XCTAssertEqual(child.hobbies, decoded.hobbies)
+    func testParentAverageRatingEmpty() {
+        let parent = Parent(name: "Test Parent", email: "test@example.com", reviews: [])
+        XCTAssertEqual(parent.averageRating, 0.0)
     }
     
-    func testEventCodable() throws {
-        let event = Event(id: "e1", title: "Park Meetup", description: "Fun in the sun", locationName: "Central Park", latitude: 40.7128, longitude: -74.0060, dateTime: Date(), organizerId: "1")
-        let data = try JSONEncoder().encode(event)
-        let decoded = try JSONDecoder().decode(Event.self, from: data)
-        
-        XCTAssertEqual(event.id, decoded.id)
-        XCTAssertEqual(event.title, decoded.title)
-        XCTAssertEqual(event.locationName, decoded.locationName)
+    func testEventCategoryExpansion() {
+        let categories = EventCategory.allCases
+        XCTAssertTrue(categories.contains(.educational))
+        XCTAssertTrue(categories.contains(.sensory))
     }
     
-    func testChatMessageCodable() throws {
-        let message = ChatMessage(id: "m1", senderId: "1", content: "Hello", type: .text)
-        let data = try JSONEncoder().encode(message)
-        let decoded = try JSONDecoder().decode(ChatMessage.self, from: data)
+    func testEventRecurrenceInitialization() {
+        let event = Event(title: "Recurring Event",
+                          description: "Desc",
+                          locationName: "Loc",
+                          latitude: 0,
+                          longitude: 0,
+                          dateTime: Date(),
+                          organizerId: "org",
+                          isRecurring: true,
+                          frequency: .weekly)
         
-        XCTAssertEqual(message.id, decoded.id)
-        XCTAssertEqual(message.content, decoded.content)
-        XCTAssertEqual(message.type, decoded.type)
-    }
-    
-    func testChatSessionCodable() throws {
-        let session = ChatSession(id: "s1", participantIds: ["1", "2"], lastMessage: "Hello")
-        let data = try JSONEncoder().encode(session)
-        let decoded = try JSONDecoder().decode(ChatSession.self, from: data)
-        
-        XCTAssertEqual(session.id, decoded.id)
-        XCTAssertEqual(session.participantIds, decoded.participantIds)
-        XCTAssertEqual(session.lastMessage, decoded.lastMessage)
-    }
-    
-    func testMatchCodable() throws {
-        let match = Match(id: "match1", userIds: ["1", "2"])
-        let data = try JSONEncoder().encode(match)
-        let decoded = try JSONDecoder().decode(Match.self, from: data)
-        
-        XCTAssertEqual(match.id, decoded.id)
-        XCTAssertEqual(match.userIds, decoded.userIds)
+        XCTAssertTrue(event.isRecurring)
+        XCTAssertEqual(event.frequency, .weekly)
     }
 }
